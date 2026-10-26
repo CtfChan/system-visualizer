@@ -1,27 +1,37 @@
 // ============================================================================
 // SECONDARY CATALOG 5: PAXOS CONSENSUS (/#paxos)
 // Proposers, Acceptors, Learners, Phase 1 (Prepare/Promise) & Phase 2 (Accept/Accepted)
+
+const PaxosMeta = {
+  accent: 'teal',
+  category: 'Consensus Protocols',
+  title: 'Paxos Consensus',
+  tags: ['Proposers · Acceptors · Learners', 'Quorum intersection', 'Spanner · Chubby'],
+  summary: 'Single-decree Paxos gets a set of nodes to agree on one value. <strong>Phase 1</strong> (<code>Prepare(n)</code> → <code>Promise</code>) reserves ballot <code>n</code> on a majority and discovers any value already accepted. <strong>Phase 2</strong> (<code>Accept(n, v)</code> → <code>Accepted</code>) gets a majority to accept it. Because any two majorities overlap, a chosen value can never be replaced. <strong>Multi-Paxos</strong> elects a stable leader that runs Phase 1 once and then commits each log slot with one Phase 2 round-trip.',
+  constraints: [
+    ['Fault tolerance', '2f+1 acceptors tolerate f failures (same as Raft).'],
+    ['Latency', 'Basic Paxos: 2 RTTs per value. Multi-Paxos steady state: 1 RTT.'],
+    ['Liveness', 'Dueling proposers can pre-empt each other forever; a leader (or randomized backoff) is required for progress.'],
+    ['Specification gap', 'The paper covers one value. Log management, leader election, snapshots and membership are left to the implementer — the main source of bugs.']
+  ],
+  useWhen: [
+    'Understanding or operating systems built on it (Spanner, Chubby, DynamoDB storage replication).',
+    'You need variants Raft doesn’t offer: Flexible Paxos (asymmetric quorums) or leaderless EPaxos for WAN.'
+  ],
+  avoidWhen: [
+    'You’re implementing consensus from scratch for a new system — Raft is easier to get right and has battle-tested libraries.'
+  ]
+};
 // ============================================================================
 function renderPaxosView(container) {
   container.innerHTML = `
-    <div class="glass-card rounded-2xl p-6 lg:p-8 border border-fuchsia-500/30">
-      <div class="space-y-3 max-w-3xl">
-        <div class="flex flex-wrap items-center gap-2">
-          <span class="px-2.5 py-1 rounded-full text-[11px] font-mono uppercase tracking-wider bg-fuchsia-500/20 text-fuchsia-300 border border-fuchsia-500/40 font-semibold">Consensus · Lamport Paxos</span>
-          <span class="px-2.5 py-1 rounded-full text-[11px] font-mono bg-slate-800 text-slate-300 border border-slate-700">2-Phase Quorum Intersection</span>
-        </div>
-        <h1 class="text-2xl sm:text-3xl font-extrabold text-white">Paxos Consensus: Proposers, Acceptors &amp; Learners</h1>
-        <p class="text-sm text-slate-300 leading-relaxed">
-          Single-Decree Paxos reaches agreement across asynchronous nodes via a 2-phase protocol: <strong>Phase 1 (<code class="text-fuchsia-300">Prepare(n)</code> / <code class="text-fuchsia-300">Promise(n, v_a, n_a)</code>)</strong> fences out older ballot numbers and discovers any already-accepted value, while <strong>Phase 2 (<code class="text-emerald-300">Accept(n, v)</code> / <code class="text-emerald-300">Accepted</code>)</strong> commits the value on a majority of Acceptors.
-        </p>
-      </div>
-    </div>
+    ${renderTopicIntro(PaxosMeta)}
 
     <div class="glass-card rounded-2xl p-6 border border-slate-800 space-y-5">
       <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 pb-4">
         <h2 class="text-base font-bold text-white">Interactive 2-Phase Paxos Protocol Stepper</h2>
         <div class="flex flex-wrap gap-2">
-          <button data-px="0" class="px-step-btn px-3 py-1.5 rounded-lg bg-fuchsia-500/20 border border-fuchsia-400 text-white text-xs font-mono">Phase 1a: Prepare(n=10)</button>
+          <button data-px="0" class="px-step-btn px-3 py-1.5 rounded-lg bg-teal-500/20 border border-teal-400 text-white text-xs font-mono">Phase 1a: Prepare(n=10)</button>
           <button data-px="1" class="px-step-btn px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-300 text-xs font-mono">Phase 1b: Promise Quorum</button>
           <button data-px="2" class="px-step-btn px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-300 text-xs font-mono">Phase 2a: Accept(n=10, v)</button>
           <button data-px="3" class="px-step-btn px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-300 text-xs font-mono">Phase 2b: Chosen &amp; Learned</button>
@@ -66,13 +76,13 @@ function renderPaxosView(container) {
     const st = stages[idx];
     document.querySelectorAll('.px-step-btn').forEach((b, i) => {
       b.className = i === idx
-        ? 'px-step-btn px-3 py-1.5 rounded-lg bg-fuchsia-500/25 border border-fuchsia-400 text-white text-xs font-mono font-bold'
+        ? 'px-step-btn px-3 py-1.5 rounded-lg bg-teal-500/25 border border-teal-400 text-white text-xs font-mono font-bold'
         : 'px-step-btn px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-300 text-xs font-mono';
     });
     document.getElementById('paxos-stage-detail').innerHTML = `
-      <div class="text-sm font-bold text-fuchsia-300">${st.title}</div>
+      <div class="text-sm font-bold text-teal-300">${st.title}</div>
       <p class="leading-relaxed text-slate-300">${st.body}</p>
-      <div class="p-3 rounded-lg bg-slate-950 border border-fuchsia-500/30 text-emerald-300">${st.state}</div>
+      <div class="p-3 rounded-lg bg-slate-950 border border-teal-500/30 text-emerald-300">${st.state}</div>
     `;
   }
 

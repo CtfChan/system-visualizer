@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Distributed Systems & Durable Execution Architecture Atlas</title>
-  <meta name="description" content="Production-grade interactive distributed systems visualizer covering Temporal, Restate.dev, Amazon DynamoDB, Google Spanner, CockroachDB, PostgreSQL MVCC, Raft, Paxos, and Apache Kafka." />
+  <title>SYS.ATLAS — Distributed Systems & Architecture Deep-Dive</title>
+  <meta name="description" content="Interactive distributed systems architecture guide covering Amazon DynamoDB, Google Spanner, CockroachDB, PostgreSQL MVCC, Raft, Paxos, Temporal, Restate.dev, and Apache Kafka." />
 
   <!-- Google Fonts: Inter & JetBrains Mono -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -40,239 +40,192 @@
   <!-- Custom Stylesheet -->
   <link rel="stylesheet" href="css/styles.css" />
 </head>
-<body class="min-h-screen flex flex-col selection:bg-indigo-500/30 selection:text-indigo-200">
+<body class="min-h-screen flex bg-slate-950 selection:bg-sky-500/30 selection:text-sky-200">
 
-  <!-- TOP TELEMETRY & NAVIGATION HEADER -->
-  <header class="sticky top-0 z-50 glass-panel border-b border-slate-800/80">
-    <div class="max-w-[1680px] mx-auto px-4 lg:px-6 h-16 flex items-center justify-between gap-4">
-      <!-- Brand -->
-      <div class="flex items-center gap-3">
-        <button id="mobile-menu-btn" class="lg:hidden p-2 rounded-lg bg-slate-800/80 text-slate-300 hover:text-white border border-slate-700">
-          <i data-lucide="menu" class="w-5 h-5"></i>
-        </button>
-        <a href="#temporal" class="flex items-center gap-3 group">
-          <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 via-purple-500 to-cyan-500 p-[1px] shadow-lg shadow-indigo-500/20">
+  <!-- Mobile Sidebar Toggle Button (Hidden on Desktop) -->
+  <button id="mobile-menu-btn" class="lg:hidden fixed top-4 left-4 z-50 p-2.5 rounded-xl bg-slate-900/95 text-slate-200 hover:text-white border border-slate-700 shadow-xl">
+    <i data-lucide="menu" class="w-5 h-5"></i>
+  </button>
+
+  <!-- LEFT ARCHITECTURAL SIDEBAR NAVIGATION (ONLY NAVIGATION BAR) -->
+  <aside id="sidebar-nav" class="fixed lg:sticky top-0 left-0 z-40 w-72 h-screen glass-panel border-r border-slate-800/80 overflow-y-auto transform -translate-x-full lg:translate-x-0 transition-transform duration-200 flex flex-col justify-between shrink-0">
+    <div class="p-4 space-y-5">
+      <!-- Brand Header inside Left Sidebar -->
+      <div class="pb-4 border-b border-slate-800/80 flex items-center justify-between">
+        <a href="#dynamodb" class="flex items-center gap-3 group">
+          <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-sky-500 via-cyan-400 to-emerald-400 p-[1px] shadow-lg shadow-cyan-500/15">
             <div class="w-full h-full bg-slate-950 rounded-[11px] flex items-center justify-center">
-              <i data-lucide="cpu" class="w-5 h-5 text-indigo-400 group-hover:rotate-12 transition-transform"></i>
+              <i data-lucide="cpu" class="w-5 h-5 text-sky-400 group-hover:rotate-12 transition-transform"></i>
             </div>
           </div>
           <div>
             <div class="flex items-center gap-2">
               <span class="font-bold tracking-tight text-white text-base">SYS.ATLAS</span>
-              <span class="text-[10px] font-mono uppercase tracking-widest px-2 py-0.5 rounded-full bg-indigo-500/15 text-indigo-300 border border-indigo-500/30">v4.2 Production</span>
+              <span id="header-route-badge" class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-900 text-sky-300 border border-slate-800">/#dynamodb</span>
             </div>
-            <p class="text-[11px] text-slate-400 hidden sm:block">Interactive Distributed Systems &amp; Durable Execution Architecture Guide</p>
+            <p class="text-[10px] text-slate-400">Distributed Systems Deep-Dive</p>
           </div>
         </a>
       </div>
 
-      <!-- Quick Priority Jump Pills -->
-      <div class="hidden xl:flex items-center gap-1.5 bg-slate-900/90 p-1 rounded-xl border border-slate-800">
-        <a href="#temporal" data-quick-link="temporal" class="quick-pill px-3 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5">
-          <i data-lucide="history" class="w-3.5 h-3.5 text-indigo-400"></i>
-          <span>Temporal Engine</span>
-        </a>
-        <a href="#restate" data-quick-link="restate" class="quick-pill px-3 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5">
-          <i data-lucide="zap" class="w-3.5 h-3.5 text-emerald-400"></i>
-          <span>Restate.dev</span>
-        </a>
-        <a href="#compare-durable" data-quick-link="compare-durable" class="quick-pill px-3 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5">
-          <i data-lucide="git-compare" class="w-3.5 h-3.5 text-cyan-400"></i>
-          <span>Temporal vs Restate</span>
-        </a>
-        <div class="h-4 w-[1px] bg-slate-800 mx-1"></div>
-        <a href="#dynamodb" data-quick-link="dynamodb" class="quick-pill px-3 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5">
-          <i data-lucide="database" class="w-3.5 h-3.5 text-amber-400"></i>
-          <span>DynamoDB Internals</span>
-        </a>
+      <!-- Search Filter -->
+      <div class="relative">
+        <i data-lucide="search" class="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2"></i>
+        <input id="nav-search-input" type="text" placeholder="Filter topics (e.g. GSI, Raft, Replay)..." class="w-full bg-slate-900/90 border border-slate-800 focus:border-sky-500 rounded-lg pl-9 pr-3 py-2 text-xs text-slate-200 placeholder-slate-500 focus:outline-none font-mono" />
       </div>
 
-      <!-- Right Status & 3D Cluster Toggle -->
-      <div class="flex items-center gap-3">
-        <div class="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-900/90 border border-slate-800 text-xs font-mono">
-          <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
-          <span class="text-slate-400">ROUTE:</span>
-          <span id="header-route-badge" class="text-indigo-300 font-semibold">/#temporal</span>
+      <!-- 1. Storage & Distributed Databases (First!) -->
+      <div>
+        <div class="flex items-center justify-between px-2 mb-2">
+          <span class="text-[10px] font-mono uppercase tracking-wider font-bold text-amber-400">Storage &amp; Databases</span>
         </div>
-        <button id="toggle-3d-modal-btn" class="px-3 py-1.5 rounded-lg bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-300 border border-indigo-500/30 text-xs font-medium flex items-center gap-1.5 transition-all" title="Inspect 3D Cluster Topology">
-          <i data-lucide="box" class="w-3.5 h-3.5"></i>
-          <span class="hidden sm:inline">3D Topology Mesh</span>
-        </button>
+        <nav class="space-y-1" id="nav-group-databases">
+          <a href="#dynamodb" data-route="dynamodb" class="sidebar-link flex items-center justify-between px-3 py-2.5 rounded-lg text-xs font-medium text-slate-300 hover:bg-slate-800/60 transition-all">
+            <div class="flex items-center gap-2.5">
+              <i data-lucide="database" class="w-4 h-4 text-amber-400 shrink-0"></i>
+              <div>
+                <div class="font-semibold">Amazon DynamoDB</div>
+                <div class="text-[10px] text-slate-400">PK/SK B-Tree, GSI/LSI &amp; Router</div>
+              </div>
+            </div>
+          </a>
+          <a href="#spanner" data-route="spanner" class="sidebar-link flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium text-slate-300 hover:bg-slate-800/60 transition-all">
+            <div class="flex items-center gap-2.5">
+              <i data-lucide="clock" class="w-4 h-4 text-blue-400 shrink-0"></i>
+              <div>
+                <div class="font-semibold">Google Cloud Spanner</div>
+                <div class="text-[10px] text-slate-400">TrueTime [t_e, t_l] &amp; Commit Wait</div>
+              </div>
+            </div>
+          </a>
+          <a href="#cockroachdb" data-route="cockroachdb" class="sidebar-link flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium text-slate-300 hover:bg-slate-800/60 transition-all">
+            <div class="flex items-center gap-2.5">
+              <i data-lucide="shield-check" class="w-4 h-4 text-teal-400 shrink-0"></i>
+              <div>
+                <div class="font-semibold">CockroachDB</div>
+                <div class="text-[10px] text-slate-400">Multi-Raft, Range Leases &amp; HLC</div>
+              </div>
+            </div>
+          </a>
+          <a href="#postgresql" data-route="postgresql" class="sidebar-link flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium text-slate-300 hover:bg-slate-800/60 transition-all">
+            <div class="flex items-center gap-2.5">
+              <i data-lucide="layers" class="w-4 h-4 text-sky-400 shrink-0"></i>
+              <div>
+                <div class="font-semibold">PostgreSQL Internals</div>
+                <div class="text-[10px] text-slate-400">MVCC Tuples, WAL &amp; VACUUM</div>
+              </div>
+            </div>
+          </a>
+        </nav>
+      </div>
+
+      <!-- 2. Consensus Protocols -->
+      <div>
+        <div class="flex items-center justify-between px-2 mb-2">
+          <span class="text-[10px] font-mono uppercase tracking-wider font-bold text-rose-400">Consensus Protocols</span>
+        </div>
+        <nav class="space-y-1" id="nav-group-consensus">
+          <a href="#raft" data-route="raft" class="sidebar-link flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium text-slate-300 hover:bg-slate-800/60 transition-all">
+            <div class="flex items-center gap-2.5">
+              <i data-lucide="network" class="w-4 h-4 text-rose-400 shrink-0"></i>
+              <div>
+                <div class="font-semibold">Raft Consensus</div>
+                <div class="text-[10px] text-slate-400">Elections, Log Replication, Terms</div>
+              </div>
+            </div>
+          </a>
+          <a href="#paxos" data-route="paxos" class="sidebar-link flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium text-slate-300 hover:bg-slate-800/60 transition-all">
+            <div class="flex items-center gap-2.5">
+              <i data-lucide="check-check" class="w-4 h-4 text-violet-400 shrink-0"></i>
+              <div>
+                <div class="font-semibold">Paxos Consensus</div>
+                <div class="text-[10px] text-slate-400">Prepare/Promise &amp; Accept/Accepted</div>
+              </div>
+            </div>
+          </a>
+        </nav>
+      </div>
+
+      <!-- 3. Durable Execution & Orchestration -->
+      <div>
+        <div class="flex items-center justify-between px-2 mb-2">
+          <span class="text-[10px] font-mono uppercase tracking-wider font-bold text-sky-400">Durable Execution</span>
+        </div>
+        <nav class="space-y-1" id="nav-group-durable">
+          <a href="#temporal" data-route="temporal" class="sidebar-link flex items-center justify-between px-3 py-2.5 rounded-lg text-xs font-medium text-slate-300 hover:bg-slate-800/60 transition-all">
+            <div class="flex items-center gap-2.5">
+              <i data-lucide="history" class="w-4 h-4 text-sky-400 shrink-0"></i>
+              <div>
+                <div class="font-semibold">Temporal Architecture</div>
+                <div class="text-[10px] text-slate-400">Replay Engine &amp; State Machine</div>
+              </div>
+            </div>
+          </a>
+          <a href="#restate" data-route="restate" class="sidebar-link flex items-center justify-between px-3 py-2.5 rounded-lg text-xs font-medium text-slate-300 hover:bg-slate-800/60 transition-all">
+            <div class="flex items-center gap-2.5">
+              <i data-lucide="zap" class="w-4 h-4 text-emerald-400 shrink-0"></i>
+              <div>
+                <div class="font-semibold">Restate.dev Engine</div>
+                <div class="text-[10px] text-slate-400">Bifrost Log &amp; HTTP/2 Suspension</div>
+              </div>
+            </div>
+          </a>
+          <a href="#compare-durable" data-route="compare-durable" class="sidebar-link flex items-center justify-between px-3 py-2.5 rounded-lg text-xs font-medium text-slate-300 hover:bg-slate-800/60 transition-all">
+            <div class="flex items-center gap-2.5">
+              <i data-lucide="git-compare" class="w-4 h-4 text-cyan-400 shrink-0"></i>
+              <div>
+                <div class="font-semibold">Temporal vs. Restate</div>
+                <div class="text-[10px] text-slate-400">Poll Workers vs. HTTP/2 Push</div>
+              </div>
+            </div>
+          </a>
+        </nav>
+      </div>
+
+      <!-- 4. Streaming & Event Logs -->
+      <div>
+        <div class="flex items-center justify-between px-2 mb-2">
+          <span class="text-[10px] font-mono uppercase tracking-wider font-bold text-orange-400">Streaming &amp; Event Logs</span>
+        </div>
+        <nav class="space-y-1" id="nav-group-streaming">
+          <a href="#kafka" data-route="kafka" class="sidebar-link flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium text-slate-300 hover:bg-slate-800/60 transition-all">
+            <div class="flex items-center gap-2.5">
+              <i data-lucide="activity" class="w-4 h-4 text-orange-400 shrink-0"></i>
+              <div>
+                <div class="font-semibold">Apache Kafka</div>
+                <div class="text-[10px] text-slate-400">Partitions, Offsets &amp; Zero-Copy</div>
+              </div>
+            </div>
+          </a>
+        </nav>
       </div>
     </div>
-  </header>
 
-  <!-- MAIN WORKSPACE LAYOUT -->
-  <div class="flex-1 max-w-[1680px] w-full mx-auto flex relative">
-
-    <!-- LEFT ARCHITECTURAL SIDEBAR NAVIGATION -->
-    <aside id="sidebar-nav" class="fixed lg:sticky top-16 left-0 z-40 w-72 h-[calc(100vh-4rem)] glass-panel border-r border-slate-800/80 overflow-y-auto transform -translate-x-full lg:translate-x-0 transition-transform duration-200 flex flex-col justify-between shrink-0">
-      <div class="p-4 space-y-6">
-        <!-- Search Filter -->
-        <div class="relative">
-          <i data-lucide="search" class="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2"></i>
-          <input id="nav-search-input" type="text" placeholder="Filter architectures (e.g. GSI, Raft)..." class="w-full bg-slate-900/90 border border-slate-800 focus:border-indigo-500 rounded-lg pl-9 pr-3 py-2 text-xs text-slate-200 placeholder-slate-500 focus:outline-none font-mono" />
-        </div>
-
-        <!-- Priority 1: Durable Execution & Orchestration -->
-        <div>
-          <div class="flex items-center justify-between px-2 mb-2">
-            <span class="text-[10px] font-mono uppercase tracking-wider font-bold text-indigo-400">Priority 1 · Durable Execution</span>
-            <span class="text-[10px] font-mono px-1.5 py-0.2 bg-indigo-500/10 text-indigo-300 rounded border border-indigo-500/20">DEFAULT</span>
-          </div>
-          <nav class="space-y-1" id="nav-group-durable">
-            <a href="#temporal" data-route="temporal" class="sidebar-link flex items-center justify-between px-3 py-2.5 rounded-lg text-xs font-medium text-slate-300 hover:bg-slate-800/60 transition-all">
-              <div class="flex items-center gap-2.5">
-                <i data-lucide="history" class="w-4 h-4 text-indigo-400 shrink-0"></i>
-                <div>
-                  <div class="font-semibold">Temporal Architecture</div>
-                  <div class="text-[10px] text-slate-400">Replay Engine &amp; State Machine</div>
-                </div>
-              </div>
-              <span class="text-[10px] font-mono text-indigo-400">P1.1</span>
-            </a>
-            <a href="#restate" data-route="restate" class="sidebar-link flex items-center justify-between px-3 py-2.5 rounded-lg text-xs font-medium text-slate-300 hover:bg-slate-800/60 transition-all">
-              <div class="flex items-center gap-2.5">
-                <i data-lucide="zap" class="w-4 h-4 text-emerald-400 shrink-0"></i>
-                <div>
-                  <div class="font-semibold">Restate.dev Engine</div>
-                  <div class="text-[10px] text-slate-400">Bifrost Log &amp; HTTP/2 Suspension</div>
-                </div>
-              </div>
-              <span class="text-[10px] font-mono text-emerald-400">P1.2</span>
-            </a>
-            <a href="#compare-durable" data-route="compare-durable" class="sidebar-link flex items-center justify-between px-3 py-2.5 rounded-lg text-xs font-medium text-slate-300 hover:bg-slate-800/60 transition-all">
-              <div class="flex items-center gap-2.5">
-                <i data-lucide="git-compare" class="w-4 h-4 text-cyan-400 shrink-0"></i>
-                <div>
-                  <div class="font-semibold">Temporal vs. Restate</div>
-                  <div class="text-[10px] text-slate-400">Poll Workers vs. HTTP/2 Push</div>
-                </div>
-              </div>
-              <span class="text-[10px] font-mono text-cyan-400">P1.3</span>
-            </a>
-          </nav>
-        </div>
-
-        <!-- Priority 2: Amazon DynamoDB Deep-Dive -->
-        <div>
-          <div class="flex items-center justify-between px-2 mb-2">
-            <span class="text-[10px] font-mono uppercase tracking-wider font-bold text-amber-400">Priority 2 · Storage &amp; Indexing</span>
-            <span class="text-[10px] font-mono px-1.5 py-0.2 bg-amber-500/10 text-amber-300 rounded border border-amber-500/20">DEEP-DIVE</span>
-          </div>
-          <nav class="space-y-1" id="nav-group-dynamodb">
-            <a href="#dynamodb" data-route="dynamodb" class="sidebar-link flex items-center justify-between px-3 py-2.5 rounded-lg text-xs font-medium text-slate-300 hover:bg-slate-800/60 transition-all">
-              <div class="flex items-center gap-2.5">
-                <i data-lucide="database" class="w-4 h-4 text-amber-400 shrink-0"></i>
-                <div>
-                  <div class="font-semibold">Amazon DynamoDB</div>
-                  <div class="text-[10px] text-slate-400">PK/SK B-Tree, GSI/LSI &amp; Router</div>
-                </div>
-              </div>
-              <span class="text-[10px] font-mono text-amber-400">P2.1</span>
-            </a>
-          </nav>
-        </div>
-
-        <!-- Secondary Catalog: Databases & Consensus -->
-        <div>
-          <div class="flex items-center justify-between px-2 mb-2">
-            <span class="text-[10px] font-mono uppercase tracking-wider font-bold text-purple-400">Databases &amp; Consensus</span>
-          </div>
-          <nav class="space-y-1" id="nav-group-databases">
-            <a href="#spanner" data-route="spanner" class="sidebar-link flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium text-slate-300 hover:bg-slate-800/60 transition-all">
-              <div class="flex items-center gap-2.5">
-                <i data-lucide="clock" class="w-4 h-4 text-blue-400 shrink-0"></i>
-                <div>
-                  <div class="font-semibold">Google Cloud Spanner</div>
-                  <div class="text-[10px] text-slate-400">TrueTime [t_e, t_l] &amp; Commit Wait</div>
-                </div>
-              </div>
-            </a>
-            <a href="#cockroachdb" data-route="cockroachdb" class="sidebar-link flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium text-slate-300 hover:bg-slate-800/60 transition-all">
-              <div class="flex items-center gap-2.5">
-                <i data-lucide="shield-check" class="w-4 h-4 text-teal-400 shrink-0"></i>
-                <div>
-                  <div class="font-semibold">CockroachDB</div>
-                  <div class="text-[10px] text-slate-400">Multi-Raft, Range Leases &amp; HLC</div>
-                </div>
-              </div>
-            </a>
-            <a href="#postgresql" data-route="postgresql" class="sidebar-link flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium text-slate-300 hover:bg-slate-800/60 transition-all">
-              <div class="flex items-center gap-2.5">
-                <i data-lucide="layers" class="w-4 h-4 text-sky-400 shrink-0"></i>
-                <div>
-                  <div class="font-semibold">PostgreSQL Internals</div>
-                  <div class="text-[10px] text-slate-400">MVCC Tuples, WAL &amp; VACUUM</div>
-                </div>
-              </div>
-            </a>
-            <a href="#raft" data-route="raft" class="sidebar-link flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium text-slate-300 hover:bg-slate-800/60 transition-all">
-              <div class="flex items-center gap-2.5">
-                <i data-lucide="network" class="w-4 h-4 text-rose-400 shrink-0"></i>
-                <div>
-                  <div class="font-semibold">Raft Consensus</div>
-                  <div class="text-[10px] text-slate-400">Elections, Log Replication, Terms</div>
-                </div>
-              </div>
-            </a>
-            <a href="#paxos" data-route="paxos" class="sidebar-link flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium text-slate-300 hover:bg-slate-800/60 transition-all">
-              <div class="flex items-center gap-2.5">
-                <i data-lucide="check-check" class="w-4 h-4 text-fuchsia-400 shrink-0"></i>
-                <div>
-                  <div class="font-semibold">Paxos Consensus</div>
-                  <div class="text-[10px] text-slate-400">Prepare/Promise &amp; Accept/Accepted</div>
-                </div>
-              </div>
-            </a>
-          </nav>
-        </div>
-
-        <!-- Secondary Catalog: Streaming & Queues -->
-        <div>
-          <div class="flex items-center justify-between px-2 mb-2">
-            <span class="text-[10px] font-mono uppercase tracking-wider font-bold text-orange-400">Streaming &amp; Logs</span>
-          </div>
-          <nav class="space-y-1" id="nav-group-streaming">
-            <a href="#kafka" data-route="kafka" class="sidebar-link flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium text-slate-300 hover:bg-slate-800/60 transition-all">
-              <div class="flex items-center gap-2.5">
-                <i data-lucide="activity" class="w-4 h-4 text-orange-400 shrink-0"></i>
-                <div>
-                  <div class="font-semibold">Apache Kafka</div>
-                  <div class="text-[10px] text-slate-400">Partitions, Offsets &amp; Zero-Copy</div>
-                </div>
-              </div>
-            </a>
-          </nav>
-        </div>
+    <!-- Bottom Sidebar Controls: 3D Topology & Runtime Telemetry -->
+    <div class="p-4 border-t border-slate-800/80 bg-slate-950/70 space-y-3">
+      <button id="toggle-3d-modal-btn" class="w-full py-2 px-3 rounded-lg bg-sky-500/15 hover:bg-sky-500/25 text-sky-300 border border-sky-500/30 text-xs font-mono font-medium flex items-center justify-center gap-2 transition-all" title="Inspect 3D Cluster Topology">
+        <i data-lucide="box" class="w-3.5 h-3.5"></i>
+        <span>3D Cluster Topology Mesh</span>
+      </button>
+      <div class="flex items-center justify-between text-[11px] font-mono">
+        <span class="text-slate-400">RAF Loops Active:</span>
+        <span id="telemetry-raf-count" class="text-emerald-400 font-semibold">1</span>
       </div>
-
-      <!-- Lifecycle & Memory Telemetry Footer -->
-      <div class="p-4 border-t border-slate-800/80 bg-slate-950/70 space-y-2">
-        <div class="flex items-center justify-between text-[11px] font-mono">
-          <span class="text-slate-400">RAF Loops Active:</span>
-          <span id="telemetry-raf-count" class="text-emerald-400 font-semibold">1</span>
-        </div>
-        <div class="flex items-center justify-between text-[11px] font-mono">
-          <span class="text-slate-400">Three.js Disposals:</span>
-          <span id="telemetry-dispose-count" class="text-indigo-400 font-semibold">0</span>
-        </div>
-        <div class="text-[10px] text-slate-400 leading-relaxed">
-          Modular topic architecture with hash router (<code class="text-slate-300">window.location.hash</code>) ready for GitHub Pages.
-        </div>
+      <div class="flex items-center justify-between text-[11px] font-mono">
+        <span class="text-slate-400">Three.js Disposals:</span>
+        <span id="telemetry-dispose-count" class="text-sky-400 font-semibold">0</span>
       </div>
-    </aside>
+    </div>
+  </aside>
 
-    <!-- MAIN CONTENT VIEWPORT -->
-    <main class="flex-1 min-w-0 p-4 sm:p-6 lg:p-8 space-y-8 grid-bg">
-      <!-- Dynamic Route Container -->
-      <div id="app-viewport" class="space-y-8"></div>
-    </main>
-  </div>
+  <!-- MAIN CONTENT VIEWPORT -->
+  <main class="flex-1 min-w-0 p-4 sm:p-6 lg:p-8 space-y-8 grid-bg">
+    <div class="max-w-[1440px] mx-auto space-y-8" id="app-viewport"></div>
+  </main>
 
   <!-- 3D CLUSTER TOPOLOGY MODAL (THREE.JS r128) -->
   <div id="modal-3d-topology" class="fixed inset-0 z-50 hidden bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4">
-    <div class="glass-card rounded-2xl max-w-5xl w-full overflow-hidden border border-indigo-500/30 shadow-2xl">
+    <div class="glass-card rounded-2xl max-w-5xl w-full overflow-hidden border border-sky-500/30 shadow-2xl">
       <div class="px-6 py-4 border-b border-slate-800 flex items-center justify-between">
         <div class="flex items-center gap-3">
           <i data-lucide="box" class="w-5 h-5 text-indigo-400"></i>
@@ -282,7 +235,7 @@
           </div>
         </div>
         <div class="flex items-center gap-2">
-          <span class="text-[11px] font-mono px-2.5 py-1 rounded bg-slate-900 text-indigo-300 border border-slate-700" id="modal-3d-mode-label">Mode: Temporal Cluster</span>
+          <span class="text-[11px] font-mono px-2.5 py-1 rounded bg-slate-900 text-sky-300 border border-slate-700" id="modal-3d-mode-label">Mode: Cluster</span>
           <button id="close-3d-modal-btn" class="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300">
             <i data-lucide="x" class="w-4 h-4"></i>
           </button>
@@ -296,11 +249,11 @@
         </div>
         <div class="p-5 bg-slate-900/90 border-l border-slate-800 flex flex-col justify-between space-y-4">
           <div class="space-y-4">
-            <h4 class="text-xs font-mono uppercase tracking-wider text-indigo-400 font-bold">Cluster Telemetry</h4>
+            <h4 class="text-xs font-mono uppercase tracking-wider text-sky-400 font-bold">Cluster Telemetry</h4>
             <div id="modal-3d-legend" class="space-y-2.5 text-xs"></div>
           </div>
           <div class="space-y-2 pt-4 border-t border-slate-800">
-            <button id="modal-3d-pulse-btn" class="w-full py-2 px-3 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-xs flex items-center justify-center gap-2 transition">
+            <button id="modal-3d-pulse-btn" class="w-full py-2 px-3 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-medium text-xs flex items-center justify-center gap-2 transition">
               <i data-lucide="radio" class="w-3.5 h-3.5"></i>
               <span>Inject Burst Traffic Wave</span>
             </button>
@@ -312,23 +265,24 @@
 
   <!-- Core Lifecycle & Utilities -->
   <script src="js/core/lifecycle.js"></script>
+  <script src="js/core/ui.js"></script>
 
-  <!-- Priority 1: Durable Execution & Orchestration Modules -->
+  <!-- Storage & Databases Modules -->
+  <script src="js/topics/storage/dynamodb.js"></script>
+  <script src="js/topics/databases-consensus/spanner.js"></script>
+  <script src="js/topics/databases-consensus/cockroachdb.js"></script>
+  <script src="js/topics/databases-consensus/postgresql.js"></script>
+
+  <!-- Consensus Protocols Modules -->
+  <script src="js/topics/databases-consensus/raft.js"></script>
+  <script src="js/topics/databases-consensus/paxos.js"></script>
+
+  <!-- Durable Execution & Orchestration Modules -->
   <script src="js/topics/durable-execution/temporal.js"></script>
   <script src="js/topics/durable-execution/restate.js"></script>
   <script src="js/topics/durable-execution/compare-durable.js"></script>
 
-  <!-- Priority 2: Amazon DynamoDB Deep-Dive Module -->
-  <script src="js/topics/storage/dynamodb.js"></script>
-
-  <!-- Secondary Catalog: Databases & Consensus Modules -->
-  <script src="js/topics/databases-consensus/spanner.js"></script>
-  <script src="js/topics/databases-consensus/cockroachdb.js"></script>
-  <script src="js/topics/databases-consensus/postgresql.js"></script>
-  <script src="js/topics/databases-consensus/raft.js"></script>
-  <script src="js/topics/databases-consensus/paxos.js"></script>
-
-  <!-- Secondary Catalog: Streaming & Logs Modules -->
+  <!-- Streaming & Event Logs Modules -->
   <script src="js/topics/streaming/kafka.js"></script>
 
   <!-- 3D Topology Visualizer & Hash Router -->

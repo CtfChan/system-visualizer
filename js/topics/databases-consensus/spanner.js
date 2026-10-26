@@ -1,36 +1,36 @@
 // ============================================================================
 // SECONDARY CATALOG 1: GOOGLE CLOUD SPANNER (/#spanner)
 // TrueTime API [t_earliest, t_latest], Commit Wait (2ε), Multi-Paxos Splits
+
+const SpannerMeta = {
+  accent: 'blue',
+  category: 'Storage & Databases',
+  title: 'Google Cloud Spanner',
+  tags: ['Global SQL', 'TrueTime', 'Paxos per split'],
+  summary: 'Horizontally scalable SQL database. Tables are range-partitioned into <strong>splits</strong>; each split is a Paxos group with a leader. <strong>TrueTime</strong> exposes clock time as an interval <code>[earliest, latest]</code> with bounded error ε. The leader picks commit timestamp <code>s = latest</code> and waits until <code>earliest &gt; s</code> (<strong>commit wait</strong>) before acknowledging — this makes timestamp order match real-time order (external consistency) and enables lock-free snapshot reads anywhere.',
+  constraints: [
+    ['Write latency floor', 'max(Paxos quorum RTT, commit wait ≈ 2ε). ε is typically low single-digit ms, so commit wait mostly overlaps with replication.'],
+    ['Multi-region writes', 'Every write pays a cross-region quorum RTT (tens of ms) in multi-region configs. Choose the leader region close to writers.'],
+    ['Cross-split transactions', 'Writes spanning multiple splits use 2PC across Paxos leaders — more RTTs and lock hold time.'],
+    ['Hotspotting', 'Monotonically increasing primary keys (timestamps, sequences) land on one split. Use UUIDv4, bit-reversed sequences, or hash prefixes.'],
+    ['Commit size', 'Mutation count per commit is capped (80,000 mutations).'],
+    ['Portability', 'GCP-only; TrueTime depends on Google’s GPS + atomic clock infrastructure.']
+  ],
+  useWhen: [
+    'You need SQL + strong consistency across regions (ledgers, inventory, identity).',
+    'Write volume or dataset size exceeds what a single Postgres primary can handle.',
+    'You want stale-but-consistent snapshot reads served from any replica without locks.'
+  ],
+  avoidWhen: [
+    'A single-region Postgres/MySQL primary fits the load — it is cheaper and lower latency.',
+    'You require multi-cloud or on-prem deployment.',
+    'Workload is analytical / scan-heavy rather than OLTP.'
+  ]
+};
 // ============================================================================
 function renderSpannerView(container) {
   container.innerHTML = `
-    <div class="glass-card rounded-2xl p-6 lg:p-8 border border-blue-500/30">
-      <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-        <div class="space-y-3 max-w-3xl">
-          <div class="flex flex-wrap items-center gap-2">
-            <span class="px-2.5 py-1 rounded-full text-[11px] font-mono uppercase tracking-wider bg-blue-500/20 text-blue-300 border border-blue-500/40 font-semibold">Databases &amp; Consensus · Spanner</span>
-            <span class="px-2.5 py-1 rounded-full text-[11px] font-mono bg-slate-800 text-slate-300 border border-slate-700">GPS + Rubidium Atomic Clocks</span>
-            <span class="px-2.5 py-1 rounded-full text-[11px] font-mono bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">External Consistency (Linearizable)</span>
-          </div>
-          <h1 class="text-2xl sm:text-3xl font-extrabold text-white">Google Cloud Spanner &amp; TrueTime Architecture</h1>
-          <p class="text-sm text-slate-300 leading-relaxed">
-            Spanner achieves <strong>globally linearizable transactions (External Consistency)</strong> and lock-free snapshot reads across continents without global clock synchronization locks by bounding clock drift via the <strong>TrueTime API <code class="text-blue-300">[t_earliest, t_latest]</code></strong> and enforcing a deterministic <strong>Commit Wait (<code class="text-amber-300">2ε</code>)</strong> before releasing locks.
-          </p>
-        </div>
-        <div class="grid grid-cols-2 gap-3 shrink-0 font-mono">
-          <div class="p-3.5 rounded-xl bg-slate-900 border border-slate-800">
-            <div class="text-[10px] text-slate-400">TrueTime Uncertainty (ε)</div>
-            <div class="text-lg font-bold text-blue-400">1ms – 7ms</div>
-            <div class="text-[10px] text-slate-500">2ε = t_latest - t_earliest</div>
-          </div>
-          <div class="p-3.5 rounded-xl bg-slate-900 border border-slate-800">
-            <div class="text-[10px] text-slate-400">Invariant Guarantee</div>
-            <div class="text-lg font-bold text-emerald-400">T1 &lt; T2 ⇒ s1 &lt; s2</div>
-            <div class="text-[10px] text-slate-500">Real-time order preserved</div>
-          </div>
-        </div>
-      </div>
-    </div>
+    ${renderTopicIntro(SpannerMeta)}
 
     <!-- INTERACTIVE TRUETIME [t_earliest, t_latest] & COMMIT WAIT SIMULATOR -->
     <div class="glass-card rounded-2xl p-6 border border-slate-800 space-y-6">

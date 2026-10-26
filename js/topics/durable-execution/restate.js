@@ -1,6 +1,76 @@
 // ============================================================================
 // PRIORITY 1.2: RESTATE.DEV ARCHITECTURE (/ #restate)
 // ============================================================================
+
+function restateArchitectureSvg() {
+  const m = 'arrow-restate';
+  const C = { client: '#94a3b8', server: '#34d399', store: '#a78bfa', svc: '#22d3ee' };
+  return `<svg viewBox="0 0 1000 400" class="w-full h-auto" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Restate architecture diagram">
+    ${Svg.defs(m)}
+    ${Svg.group(190, 20, 470, 360, 'RESTATE SERVER (single binary, clusterable)', C.server)}
+    ${Svg.group(700, 20, 280, 360, 'YOUR SERVICES', C.svc)}
+
+    ${Svg.box(20, 150, 130, 60, 'Client', 'HTTP · Kafka · SDK', C.client)}
+
+    ${Svg.box(215, 60, 190, 58, 'Ingress', 'HTTP / Kafka subscriptions', C.server)}
+    ${Svg.box(440, 60, 195, 58, 'Metadata Store', 'Raft · config · leadership', C.server)}
+    ${Svg.box(215, 170, 190, 58, 'Bifrost Log', 'replicated durable log', C.server)}
+    ${Svg.box(440, 170, 195, 58, 'Partition Processor', 'invocation FSM · timers', C.server)}
+    ${Svg.box(215, 290, 190, 58, 'Object Store', 'partition snapshots (S3)', C.store)}
+    ${Svg.box(440, 290, 195, 58, 'RocksDB', 'journals · K/V state · timers', C.store)}
+
+    ${Svg.box(725, 95, 230, 62, 'Service (K8s / VM)', 'HTTP/2 bidirectional stream', C.svc)}
+    ${Svg.box(725, 225, 230, 62, 'AWS Lambda / FaaS', 'request-response mode', C.svc)}
+
+    ${Svg.arrow(m, 150, 175, 213, 100, '1 invoke', { lx: 168, ly: 128 })}
+    ${Svg.arrow(m, 310, 118, 310, 168, '2 append', { lx: 316, ly: 148, anchor: 'start' })}
+    ${Svg.arrow(m, 405, 199, 438, 199, '3', { ly: 192 })}
+    ${Svg.arrow(m, 537, 228, 537, 288, 'state', { lx: 543, ly: 262, anchor: 'start' })}
+    ${Svg.arrow(m, 440, 319, 407, 319, '', { dashed: true })}
+    ${Svg.arrow(m, 537, 118, 537, 168, '', { dashed: true })}
+    ${Svg.arrow(m, 635, 188, 723, 128, '4 push + journal', { lx: 672, ly: 146, both: true })}
+    ${Svg.arrow(m, 635, 212, 723, 255, '5 entries / suspend', { lx: 676, ly: 250, both: true })}
+  </svg>`;
+}
+
+const RestateMeta = {
+  accent: 'emerald',
+  category: 'Durable Execution',
+  title: 'Restate',
+  tags: ['Push-based invocation', 'Embedded replicated log', 'Suspend on await'],
+  summary: 'Durable execution as a server in front of your services. Restate receives every request, appends it to its own replicated log (<strong>Bifrost</strong>) and <strong>pushes</strong> it to your handler over HTTP. Each step — <code>ctx.run()</code>, service calls, sleeps, state writes — is sent back as a <strong>journal entry</strong> and made durable. On retry Restate re-sends the journal, so completed steps return their recorded result. While a handler waits, it <strong>suspends</strong> and releases its thread and connection.',
+  diagram: {
+    title: 'High-Level Architecture',
+    svg: restateArchitectureSvg(),
+    steps: [
+      'Client sends a request to Ingress (or Restate consumes it from Kafka). An idempotency key deduplicates retries.',
+      'The invocation is appended to Bifrost before anything executes.',
+      'The partition processor owning the target key tails the log and keeps journals, Virtual Object state and timers in RocksDB (snapshotted to object storage).',
+      'Restate calls your handler and pushes the invocation along with any existing journal and state.',
+      'Each step streams back as a journal entry; Restate persists it and acks. On <code>await</code> the handler sends a suspension and returns.',
+      'When the awaited timer or call completes, Restate re-invokes the handler with the full journal; finished steps are replayed, not re-run.'
+    ]
+  },
+  constraints: [
+    ['Determinism', 'Code between journaled steps must be deterministic; put non-deterministic work inside ctx.run(). In-flight invocations stay pinned to the deployment that started them — keep old versions reachable until they drain.'],
+    ['Network direction', 'Restate pushes to your services, so endpoints must be reachable from the Restate server (or invoked via Lambda / a tunnel).'],
+    ['Virtual Objects', 'Exclusive handlers on the same key run one at a time. A hot key serializes; per-key throughput ≈ 1 / handler latency.'],
+    ['Journal growth', 'Every step is a journal entry kept for the life of the invocation. Split very long loops into separate invocations.'],
+    ['Operations', 'You run the Restate cluster: local disks for log/state plus an object store for snapshots. Or use Restate Cloud.'],
+    ['Maturity', 'Younger project with a smaller ecosystem and fewer production references than Temporal.']
+  ],
+  useWhen: [
+    'Durable RPC-style handlers needing exactly-once side effects (payments, webhooks, provisioning).',
+    'Serverless workflows (Lambda, Cloud Run) that shouldn’t pay for time spent waiting.',
+    'Per-entity stateful logic (carts, accounts, devices) without a separate DB + locking.',
+    'Latency-sensitive workflows where an extra external DB hop per step hurts.'
+  ],
+  avoidWhen: [
+    'Your services cannot accept inbound requests from the orchestrator.',
+    'You need a mature enterprise ecosystem, tooling and support today.',
+    'A single invocation would accumulate an enormous journal.'
+  ]
+};
 const RestateData = {
   components: {
     bifrost: {
@@ -153,47 +223,7 @@ withdraw: async (ctx: restate.ObjectContext, amount: number) => {
 
 function renderRestateView(container) {
   container.innerHTML = `
-    <!-- HERO BANNER -->
-    <div class="glass-card rounded-2xl p-6 lg:p-8 border border-emerald-500/30 relative overflow-hidden">
-      <div class="absolute -right-20 -top-20 w-96 h-96 bg-emerald-600/10 rounded-full blur-3xl pointer-events-none"></div>
-      <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-        <div class="space-y-3 max-w-3xl">
-          <div class="flex flex-wrap items-center gap-2">
-            <span class="px-2.5 py-1 rounded-full text-[11px] font-mono uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-semibold">Priority 1.2 · Durable Execution</span>
-            <span class="px-2.5 py-1 rounded-full text-[11px] font-mono bg-slate-800 text-slate-300 border border-slate-700">Embedded Bifrost Raft Log</span>
-            <span class="px-2.5 py-1 rounded-full text-[11px] font-mono bg-cyan-500/15 text-cyan-300 border border-cyan-500/30">HTTP/2 Push &amp; Suspension</span>
-          </div>
-          <h1 class="text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight text-white">
-            Restate.dev Architecture &amp; Suspension Engine
-          </h1>
-          <p class="text-sm text-slate-300 leading-relaxed">
-            Restate reimagines durable execution as a <strong>distributed Rust kernel runtime</strong> situated directly in the RPC path. Backed by an embedded <strong>Bifrost Raft log</strong> and <strong>RocksDB LSM-tree state store</strong>, Restate pushes invocations over <strong>HTTP/2 bidirectional streams</strong> and deterministically suspends handlers when awaiting promises—freeing worker threads completely.
-          </p>
-        </div>
-        <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-2 gap-3 shrink-0">
-          <div class="p-3.5 rounded-xl bg-slate-900/90 border border-slate-800">
-            <div class="text-[11px] font-mono text-slate-400">Runtime Footprint</div>
-            <div class="text-lg font-bold font-mono text-emerald-400">1 Binary</div>
-            <div class="text-[10px] text-slate-400">Rust + RocksDB + Raft</div>
-          </div>
-          <div class="p-3.5 rounded-xl bg-slate-900/90 border border-slate-800">
-            <div class="text-[11px] font-mono text-slate-400">Wire Protocol</div>
-            <div class="text-lg font-bold font-mono text-cyan-400">HTTP/2 Push</div>
-            <div class="text-[10px] text-slate-400">Bi-di streaming frames</div>
-          </div>
-          <div class="p-3.5 rounded-xl bg-slate-900/90 border border-slate-800">
-            <div class="text-[11px] font-mono text-slate-400">Sleeping Thread Cost</div>
-            <div class="text-lg font-bold font-mono text-indigo-400">0 Threads</div>
-            <div class="text-[10px] text-slate-400">SuspensionMessage</div>
-          </div>
-          <div class="p-3.5 rounded-xl bg-slate-900/90 border border-slate-800">
-            <div class="text-[11px] font-mono text-slate-400">Virtual Object State</div>
-            <div class="text-lg font-bold font-mono text-amber-400">0ms Read</div>
-            <div class="text-[10px] text-slate-400">Eagerly pushed in Start</div>
-          </div>
-        </div>
-      </div>
-    </div>
+    ${renderTopicIntro(RestateMeta)}
 
     <!-- SECTION 1: INTERACTIVE HTTP/2 JOURNAL & PROMISE SUSPENSION SIMULATOR -->
     <div class="glass-card rounded-2xl p-6 border border-slate-800 space-y-6">
@@ -312,10 +342,10 @@ process: async (ctx: restate.Context, req: OrderReq) => {
         <div>
           <h3 class="text-base font-bold text-white flex items-center gap-2">
             <i data-lucide="bar-chart-3" class="w-4 h-4 text-cyan-400"></i>
-            Worker Memory &amp; Active Threads (10,000 Sleeping Invocations)
+            Threads Held While 10,000 Executions Wait (Illustrative)
           </h3>
           <p class="text-xs text-slate-400 mt-1">
-            Comparing worker RAM consumption when 10,000 workflows are simultaneously waiting on a 1-hour durable timer or external webhook.
+            Durable engines hold no per-execution thread while waiting. The real difference: Temporal needs an always-on poller pool; Restate needs nothing running until it re-invokes the handler.
           </p>
         </div>
         <div class="h-56 bg-slate-950 rounded-xl p-3 border border-slate-800">
@@ -427,11 +457,11 @@ process: async (ctx: restate.Context, req: OrderReq) => {
     LifecycleManager.registerChart(new Chart(thCtx, {
       type: 'bar',
       data: {
-        labels: ['Restate (HTTP/2 Suspended)', 'Temporal (Sticky Cache Evicted)', 'Naive Blocking Microservice'],
+        labels: ['Restate (suspended)', 'Temporal (fixed poller pool)', 'Thread-per-request blocking'],
         datasets: [
           {
             label: 'Active Worker Threads Held',
-            data: [0, 4, 10000],
+            data: [0, 10, 10000],
             backgroundColor: ['rgba(16, 185, 129, 0.7)', 'rgba(99, 102, 241, 0.7)', 'rgba(244, 63, 94, 0.7)'],
             borderRadius: 6
           }
@@ -442,7 +472,7 @@ process: async (ctx: restate.Context, req: OrderReq) => {
         responsive: true,
         maintainAspectRatio: false,
         scales: {
-          x: { type: 'logarithmic', ticks: { color: '#94a3b8', font: { family: 'JetBrains Mono', size: 10 } }, grid: { color: 'rgba(51,65,85,0.2)' } },
+          x: { type: 'linear', ticks: { color: '#94a3b8', font: { family: 'JetBrains Mono', size: 10 } }, grid: { color: 'rgba(51,65,85,0.2)' } },
           y: { ticks: { color: '#e2e8f0', font: { family: 'JetBrains Mono', size: 10 } }, grid: { display: false } }
         },
         plugins: {

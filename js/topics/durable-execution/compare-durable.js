@@ -1,6 +1,29 @@
 // ============================================================================
-// PRIORITY 1.3: COMPARATIVE VISUALIZER: TEMPORAL vs. RESTATE (/#compare-durable)
+// COMPARATIVE VISUALIZER: TEMPORAL vs. RESTATE (/#compare-durable)
 // ============================================================================
+
+const CompareDurableMeta = {
+  accent: 'cyan',
+  category: 'Durable Execution',
+  title: 'Temporal vs. Restate',
+  tags: ['Pull vs. push', 'External DB vs. embedded log'],
+  summary: 'Both give you durable execution: code that survives crashes by journaling each step and replaying on recovery. The difference is topology. <strong>Temporal</strong> workers <em>pull</em> tasks from a multi-service cluster backed by an external database. <strong>Restate</strong> is a single server with an embedded replicated log that <em>pushes</em> invocations to your services over HTTP and suspends them while they wait.',
+  constraints: [
+    ['Network direction', 'Temporal: workers dial out (no inbound ports). Restate: server must reach your endpoints (inbound path or tunnel).'],
+    ['Infra footprint', 'Temporal: 4 services + Cassandra/Postgres/MySQL + optional Elasticsearch (or Temporal Cloud). Restate: one binary per node, state on local disk + object store snapshots.'],
+    ['Waiting cost', 'Temporal: idle workflows hold no threads, but a worker fleet must always be polling. Restate: suspended invocations hold nothing; FaaS can scale to zero.'],
+    ['Programming model', 'Temporal: workflows vs. activities (separate task queues). Restate: one handler with inline ctx.run() steps, plus keyed Virtual Objects.'],
+    ['Maturity', 'Temporal: large production footprint, broad SDK support. Restate: younger, smaller ecosystem.']
+  ],
+  useWhen: [
+    'Pick Temporal for long-running, multi-team orchestration with strong visibility/search needs and workers that can’t accept inbound traffic.',
+    'Pick Restate for durable RPC-style handlers, serverless deployments and per-key stateful services where latency matters.'
+  ],
+  avoidWhen: [
+    'Either one, if a plain queue + idempotent consumers is enough.',
+    'Either one on hot, sub-millisecond request paths.'
+  ]
+};
 const CompareScenarios = {
   rpc: {
     name: '1. Low-Latency Synchronous Durable RPC (<25ms)',
@@ -27,34 +50,26 @@ const CompareScenarios = {
 
 function renderCompareDurableView(container) {
   container.innerHTML = `
-    <!-- Header -->
-    <div class="glass-card rounded-2xl p-6 lg:p-8 border border-cyan-500/30">
-      <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-        <div class="space-y-2 max-w-3xl">
-          <span class="px-2.5 py-1 rounded-full text-[11px] font-mono uppercase tracking-wider bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 font-semibold">Priority 1.3 · Architectural Diff</span>
-          <h1 class="text-2xl sm:text-3xl font-extrabold text-white">Comparative Visualizer: Temporal Polling vs. Restate HTTP/2 Push</h1>
-          <p class="text-sm text-slate-300">
-            Interactive side-by-side protocol and topology comparison contrasting Temporal's <strong>Worker Task-Queue Long-Polling &amp; Sharded History DB</strong> with Restate's <strong>HTTP/2 Push Streaming &amp; Embedded Bifrost/LSM Kernel</strong>.
-          </p>
-        </div>
-        <div class="flex flex-wrap gap-2" id="cmp-scenario-btns">
-          <button data-scen="rpc" class="cmp-scen-btn px-3.5 py-2 rounded-xl text-xs font-mono font-semibold bg-cyan-500/20 border border-cyan-400 text-white">1. Short Durable RPC</button>
-          <button data-scen="serverless" class="cmp-scen-btn px-3.5 py-2 rounded-xl text-xs font-mono font-semibold bg-slate-900 border border-slate-800 text-slate-300">2. 30-Day Serverless Sleep</button>
-          <button data-scen="actor" class="cmp-scen-btn px-3.5 py-2 rounded-xl text-xs font-mono font-semibold bg-slate-900 border border-slate-800 text-slate-300">3. Stateful Entity / K-V</button>
-        </div>
+    ${renderTopicIntro(CompareDurableMeta)}
+    <div class="glass-card rounded-2xl px-5 py-3 border border-slate-800 flex flex-wrap items-center justify-between gap-3">
+      <span class="text-[11px] font-mono uppercase tracking-wider text-slate-400">Simulator controls</span>
+      <div class="flex flex-wrap gap-2" id="cmp-scenario-btns">
+      <button data-scen="rpc" class="cmp-scen-btn px-3.5 py-2 rounded-xl text-xs font-mono font-semibold bg-cyan-500/20 border border-cyan-400 text-white">1. Short Durable RPC</button>
+      <button data-scen="serverless" class="cmp-scen-btn px-3.5 py-2 rounded-xl text-xs font-mono font-semibold bg-slate-900 border border-slate-800 text-slate-300">2. 30-Day Serverless Sleep</button>
+      <button data-scen="actor" class="cmp-scen-btn px-3.5 py-2 rounded-xl text-xs font-mono font-semibold bg-slate-900 border border-slate-800 text-slate-300">3. Stateful Entity / K-V</button>
       </div>
     </div>
 
     <!-- Side-by-Side Live Animated Architectural Diff -->
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
       <!-- Temporal Column -->
-      <div class="glass-card rounded-2xl p-5 border border-indigo-500/40 space-y-4">
+      <div class="glass-card rounded-2xl p-5 border border-sky-500/40 space-y-4">
         <div class="flex items-center justify-between border-b border-slate-800 pb-3">
           <div class="flex items-center gap-2">
-            <span class="w-3 h-3 rounded-full bg-indigo-500"></span>
+            <span class="w-3 h-3 rounded-full bg-sky-500"></span>
             <h2 class="text-base font-bold text-white">Temporal: Worker Long-Polling &amp; Sharded History DB</h2>
           </div>
-          <span class="text-[11px] font-mono px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-300">Pull / Poll Model</span>
+          <span class="text-[11px] font-mono px-2 py-0.5 rounded bg-sky-500/20 text-sky-300">Pull / Poll Model</span>
         </div>
         <canvas id="cmp-temporal-canvas" class="w-full h-[210px] rounded-xl bg-slate-950 border border-slate-800 block"></canvas>
         <p id="cmp-temporal-desc" class="text-xs text-slate-300 font-mono leading-relaxed bg-slate-900/90 p-3 rounded-lg border border-slate-800"></p>
@@ -86,7 +101,7 @@ function renderCompareDurableView(container) {
         <thead>
           <tr class="border-b border-slate-800 text-slate-400 font-mono uppercase text-[11px]">
             <th class="py-3 px-4">Architectural Dimension</th>
-            <th class="py-3 px-4 text-indigo-300">Temporal Architecture</th>
+            <th class="py-3 px-4 text-sky-300">Temporal Architecture</th>
             <th class="py-3 px-4 text-emerald-300">Restate.dev Architecture</th>
           </tr>
         </thead>
@@ -135,7 +150,7 @@ function renderCompareDurableView(container) {
     document.getElementById('cmp-temporal-desc').textContent = sc.temporalSummary;
     document.getElementById('cmp-restate-desc').textContent = sc.restateSummary;
     document.getElementById('cmp-temporal-hops').innerHTML = sc.temporalHops.map((h, i) =>
-      `<span class="px-2 py-1 rounded bg-indigo-500/15 border border-indigo-500/30 text-[11px] font-mono text-indigo-200">${i + 1}. ${h}</span>`
+      `<span class="px-2 py-1 rounded bg-sky-500/15 border border-sky-500/30 text-[11px] font-mono text-sky-200">${i + 1}. ${h}</span>`
     ).join('');
     document.getElementById('cmp-restate-hops').innerHTML = sc.restateHops.map((h, i) =>
       `<span class="px-2 py-1 rounded bg-emerald-500/15 border border-emerald-500/30 text-[11px] font-mono text-emerald-200">${i + 1}. ${h}</span>`
@@ -221,7 +236,7 @@ function renderCompareDurableView(container) {
       { title: 'History DB', sub: 'Shard Tx', lat: '~5-12ms' },
       { title: 'Matching', sub: 'Task Queue', lat: 'Long-Poll' },
       { title: 'Worker Pod', sub: 'SDK Replay', lat: 'Outbound' }
-    ], '#818cf8', 'TEMPORAL: MULTI-SERVICE SHARDED POLL PIPELINE');
+    ], '#38bdf8', 'TEMPORAL: MULTI-SERVICE SHARDED POLL PIPELINE');
 
     renderPipeline(rCan, [
       { title: 'Ingress', sub: 'HTTP/2 Edge', lat: '~0.3ms' },

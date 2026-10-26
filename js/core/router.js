@@ -1,28 +1,28 @@
 // ============================================================================
-// HASH-BASED ROUTER (STRICTLY window.location.hash, DEFAULT /#temporal)
+// HASH-BASED ROUTER (window.location.hash)
 // ============================================================================
 const Routes = {
-  'temporal': renderTemporalView,
-  'restate': renderRestateView,
-  'compare-durable': renderCompareDurableView,
   'dynamodb': renderDynamoDBView,
   'spanner': renderSpannerView,
   'cockroachdb': renderCockroachDBView,
   'postgresql': renderPostgresView,
   'raft': renderRaftView,
   'paxos': renderPaxosView,
+  'temporal': renderTemporalView,
+  'restate': renderRestateView,
+  'compare-durable': renderCompareDurableView,
   'kafka': renderKafkaView
 };
 
 function normalizeHash(rawHash) {
   const cleaned = String(rawHash || '').replace(/^#\/?/, '').trim().toLowerCase();
-  return Routes[cleaned] ? cleaned : 'temporal';
+  return Routes[cleaned] ? cleaned : 'dynamodb';
 }
 
 function handleRouteChange() {
   const raw = window.location.hash;
   if (!raw || raw === '#' || raw === '#/') {
-    window.location.hash = '#temporal';
+    window.location.hash = '#dynamodb';
     return;
   }
   const routeKey = normalizeHash(raw);
@@ -30,20 +30,13 @@ function handleRouteChange() {
   // 1. Strict Lifecycle Cleanup on every route transition
   LifecycleManager.cleanupAll();
 
-  // 2. Update Header Badge & Active Navigation Highlighting
+  // 2. Update Sidebar Route Badge & Active Navigation Highlighting
   const badge = document.getElementById('header-route-badge');
   if (badge) badge.textContent = `/#${routeKey}`;
 
   document.querySelectorAll('.sidebar-link').forEach(link => {
     const isMatch = link.getAttribute('data-route') === routeKey;
     link.classList.toggle('nav-item-active', isMatch);
-  });
-
-  document.querySelectorAll('.quick-pill').forEach(pill => {
-    const isMatch = pill.getAttribute('data-quick-link') === routeKey;
-    pill.className = isMatch
-      ? 'quick-pill px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 bg-indigo-500/20 text-white border border-indigo-500/40'
-      : 'quick-pill px-3 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5 text-slate-400 hover:text-white';
   });
 
   // 3. Render Selected View
@@ -88,7 +81,7 @@ document.getElementById('close-3d-modal-btn')?.addEventListener('click', () => {
 window.addEventListener('hashchange', handleRouteChange);
 window.addEventListener('DOMContentLoaded', () => {
   if (!window.location.hash || window.location.hash === '#' || window.location.hash === '#/') {
-    window.location.hash = '#temporal';
+    window.location.hash = '#dynamodb';
   }
   handleRouteChange();
 });

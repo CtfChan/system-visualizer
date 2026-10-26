@@ -1,22 +1,36 @@
 // ============================================================================
 // SECONDARY CATALOG 3: POSTGRESQL INTERNALS (/#postgresql)
 // MVCC Tuple Versions (xmin, xmax, ctid), Write-Ahead Log (WAL), VACUUM
+
+const PostgresMeta = {
+  accent: 'sky',
+  category: 'Storage & Databases',
+  title: 'PostgreSQL Internals',
+  tags: ['Single primary', 'Append-only MVCC', 'WAL replication'],
+  summary: 'Single-primary relational database. An <code>UPDATE</code> never overwrites in place: it writes a new tuple version and stamps the old one with <code>xmax</code>. Readers pick the version visible to their snapshot, so readers never block writers — but dead tuples accumulate until <strong>VACUUM</strong> reclaims them. Every change is first written to the <strong>WAL</strong>, which provides crash recovery and feeds physical/logical replication.',
+  constraints: [
+    ['Write scaling', 'All writes go to one primary — scale is vertical. Read replicas scale reads only.'],
+    ['Bloat', 'Long-running transactions or idle-in-transaction sessions pin the xmin horizon and stop VACUUM from reclaiming dead tuples.'],
+    ['XID wraparound', '32-bit transaction IDs. Tables must be frozen by (anti-wraparound) autovacuum or the cluster stops accepting writes.'],
+    ['Connections', 'One OS process per connection (several MB each). Thousands of clients need a pooler such as PgBouncer.'],
+    ['Replication lag', 'Async replicas serve stale reads; synchronous replication adds a replica RTT to every commit.'],
+    ['HOT updates', 'Heap-only tuple updates (no index writes) only happen if no indexed column changes and the page has free space — tune fillfactor for update-heavy tables.']
+  ],
+  useWhen: [
+    'Default choice for OLTP: rich SQL, joins, constraints, extensions (PostGIS, pgvector).',
+    'Data and write rate fit on one well-provisioned primary (multi-TB is fine).',
+    'You want a mature ecosystem and predictable operational behaviour.'
+  ],
+  avoidWhen: [
+    'Sustained write throughput beyond a single node.',
+    'Active-active multi-region writes.',
+    'Very high-churn update workloads where VACUUM cannot keep up without heavy tuning.'
+  ]
+};
 // ============================================================================
 function renderPostgresView(container) {
   container.innerHTML = `
-    <div class="glass-card rounded-2xl p-6 lg:p-8 border border-sky-500/30">
-      <div class="space-y-3 max-w-3xl">
-        <div class="flex flex-wrap items-center gap-2">
-          <span class="px-2.5 py-1 rounded-full text-[11px] font-mono uppercase tracking-wider bg-sky-500/20 text-sky-300 border border-sky-500/40 font-semibold">Databases &amp; Consensus · PostgreSQL</span>
-          <span class="px-2.5 py-1 rounded-full text-[11px] font-mono bg-slate-800 text-slate-300 border border-slate-700">8KB Heap Pages &amp; MVCC</span>
-          <span class="px-2.5 py-1 rounded-full text-[11px] font-mono bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">WAL LSN &amp; Autovacuum</span>
-        </div>
-        <h1 class="text-2xl sm:text-3xl font-extrabold text-white">PostgreSQL Storage Engine: MVCC Tuples, WAL &amp; VACUUM</h1>
-        <p class="text-sm text-slate-300 leading-relaxed">
-          Unlike InnoDB or Oracle (which overwrite rows in-place and store old versions in a Rollback/Undo Segment), PostgreSQL appends a <strong>new physical Heap Tuple version on every UPDATE</strong>, stamping <code class="text-rose-300">t_xmax</code> on the old tuple and <code class="text-emerald-300">t_xmin</code> on the new tuple, relying on <strong>AUTOVACUUM</strong> to reclaim dead tuple space.
-        </p>
-      </div>
-    </div>
+    ${renderTopicIntro(PostgresMeta)}
 
     <!-- Interactive 8KB Heap Page, MVCC Tuple Chain & WAL Simulator -->
     <div class="glass-card rounded-2xl p-6 border border-slate-800 space-y-5">

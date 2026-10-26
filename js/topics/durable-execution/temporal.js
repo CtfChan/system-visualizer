@@ -1,6 +1,80 @@
 // ============================================================================
 // PRIORITY 1.1: TEMPORAL ARCHITECTURE (DEFAULT VIEW /#temporal)
 // ============================================================================
+
+function temporalArchitectureSvg() {
+  const m = 'arrow-temporal';
+  const C = { client: '#94a3b8', server: '#38bdf8', infra: '#fbbf24', store: '#0284c7', worker: '#38bdf8', ext: '#34d399' };
+  return `<svg viewBox="0 0 1000 400" class="w-full h-auto" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Temporal architecture diagram">
+    ${Svg.defs(m)}
+    ${Svg.group(190, 20, 430, 360, 'TEMPORAL SERVICE', C.server)}
+    ${Svg.group(660, 20, 320, 360, 'YOUR INFRASTRUCTURE', C.infra)}
+
+    ${Svg.box(20, 150, 130, 60, 'Client', 'SDK client / starter', C.client)}
+
+    ${Svg.box(215, 60, 170, 58, 'Frontend', 'gRPC gateway · stateless', C.server)}
+    ${Svg.box(425, 60, 170, 58, 'Matching', 'task queues', C.server)}
+    ${Svg.box(215, 170, 170, 58, 'History', 'shards · event log owner', C.server)}
+    ${Svg.box(425, 170, 170, 58, 'Visibility', 'list / search executions', C.server)}
+    ${Svg.box(215, 290, 170, 58, 'Persistence', 'Cassandra · Postgres · MySQL', C.store)}
+    ${Svg.box(425, 290, 170, 58, 'Visibility Store', 'Elasticsearch / SQL', C.store)}
+
+    ${Svg.box(690, 60, 260, 58, 'Workflow Worker', 'deterministic code · replay', C.worker)}
+    ${Svg.box(690, 170, 260, 58, 'Activity Worker', 'side effects · retries', C.worker)}
+    ${Svg.box(690, 290, 260, 58, 'External Systems', 'APIs · databases · queues', C.ext)}
+
+    ${Svg.arrow(m, 150, 175, 213, 100, '1 start', { lx: 170, ly: 128 })}
+    ${Svg.arrow(m, 300, 118, 300, 168, '2 route to shard', { lx: 306, ly: 148, anchor: 'start' })}
+    ${Svg.arrow(m, 300, 228, 300, 288, '3 append events', { lx: 306, ly: 262, anchor: 'start' })}
+    ${Svg.arrow(m, 385, 185, 470, 120, '4 enqueue task', { lx: 432, ly: 150, anchor: 'start' })}
+    ${Svg.arrow(m, 385, 212, 423, 212, '', { dashed: true })}
+    ${Svg.arrow(m, 510, 228, 510, 288, 'async index', { lx: 516, ly: 262, anchor: 'start', dashed: true })}
+    ${Svg.arrow(m, 690, 89, 597, 89, '5 poll / respond', { lx: 643, ly: 82, both: true })}
+    ${Svg.arrow(m, 690, 195, 597, 108, 'poll activities', { lx: 652, ly: 140, both: true })}
+    ${Svg.arrow(m, 820, 228, 820, 288, '6 side effects', { lx: 826, ly: 262, anchor: 'start' })}
+  </svg>`;
+}
+
+const TemporalMeta = {
+  accent: 'sky',
+  category: 'Durable Execution',
+  title: 'Temporal',
+  tags: ['Event-sourced workflows', 'Worker long-polling', 'External persistence'],
+  summary: 'Workflow orchestration platform. The Temporal service stores an append-only <strong>event history</strong> for every workflow execution. Your <strong>workers</strong> poll task queues, run workflow code until it blocks, and return <strong>commands</strong> (schedule activity, start timer). Side effects run as <strong>activities</strong> with server-managed retries. If a worker dies, another one replays the history through the same code to rebuild state — recorded activity results are reused, never re-executed.',
+  diagram: {
+    title: 'High-Level Architecture',
+    svg: temporalArchitectureSvg(),
+    steps: [
+      'Client calls <code>StartWorkflowExecution</code> on the Frontend.',
+      'Frontend hashes the workflow ID to a History shard and forwards the request.',
+      'History atomically appends events, updates mutable state and writes outbox tasks in one DB transaction.',
+      'Outbox (transfer) tasks put a workflow or activity task on a Matching task queue.',
+      'Workers long-poll over outbound gRPC (via Frontend). Workflow workers return commands; History records them as events.',
+      'Activity workers call external systems and report results. On crash, any worker replays history to resume.'
+    ]
+  },
+  constraints: [
+    ['Determinism', 'Workflow code must replay identically: no direct I/O, wall clock, randomness or native threads — use SDK APIs. Changing code with in-flight executions requires versioning (patching / worker versioning).'],
+    ['History size', 'Hard limit 51,200 events or 50 MB per execution (warnings from 10,240 events / 10 MB). Long-lived or looping workflows must Continue-As-New.'],
+    ['Payload size', '2 MB per payload. Pass references to large blobs, not the blobs.'],
+    ['Per-step latency', 'Each workflow step is several internal hops plus a DB write — tens of ms. Not for hot synchronous request paths.'],
+    ['History shards', 'numHistoryShards is fixed at cluster creation. Size it for future throughput; changing it means migrating.'],
+    ['Operations', 'Self-hosting = 4 services + Cassandra/Postgres/MySQL + Elasticsearch for advanced visibility. Or use Temporal Cloud.'],
+    ['Workers', 'Always-on processes polling task queues. Scale on schedule-to-start latency / backlog.']
+  ],
+  useWhen: [
+    'Long-running business processes (minutes to months) with timers, retries and human approval steps.',
+    'Sagas and compensation spanning many services and teams.',
+    'Workers live in locked-down networks — they only need outbound connections.',
+    'You need to list/search executions by status or custom attributes.'
+  ],
+  avoidWhen: [
+    'Low-latency synchronous request paths.',
+    'Simple background jobs where a queue with idempotent consumers is enough.',
+    'Fully serverless stacks with no place to run an always-on poller fleet.',
+    'Single workflows with unbounded fan-out (hits history limits — use child workflows).'
+  ]
+};
 const TemporalData = {
   services: {
     frontend: {
@@ -240,54 +314,14 @@ throw new NonDeterministicWorkflowError(
 
 function renderTemporalView(container) {
   container.innerHTML = `
-    <!-- HERO BANNER -->
-    <div class="glass-card rounded-2xl p-6 lg:p-8 border border-indigo-500/30 relative overflow-hidden">
-      <div class="absolute -right-20 -top-20 w-96 h-96 bg-indigo-600/10 rounded-full blur-3xl pointer-events-none"></div>
-      <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-        <div class="space-y-3 max-w-3xl">
-          <div class="flex flex-wrap items-center gap-2">
-            <span class="px-2.5 py-1 rounded-full text-[11px] font-mono uppercase tracking-wider bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 font-semibold">Priority 1.1 · Default View</span>
-            <span class="px-2.5 py-1 rounded-full text-[11px] font-mono bg-slate-800 text-slate-300 border border-slate-700">Event-Sourced Replay Engine</span>
-            <span class="px-2.5 py-1 rounded-full text-[11px] font-mono bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">Task Queue Polling</span>
-          </div>
-          <h1 class="text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight text-white">
-            Temporal Durable Execution Architecture
-          </h1>
-          <p class="text-sm text-slate-300 leading-relaxed">
-            Temporal guarantees fault-tolerant, long-running workflow execution by separating <strong>deterministic orchestration logic (Workflows)</strong> from <strong>non-deterministic I/O side effects (Activities)</strong>. Rather than snapshotting raw process memory, Temporal persists an append-only <strong>Event History Log</strong> in sharded History nodes and reconstructs worker state via deterministic log replay.
-          </p>
-        </div>
-        <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-2 gap-3 shrink-0">
-          <div class="p-3.5 rounded-xl bg-slate-900/90 border border-slate-800">
-            <div class="text-[11px] font-mono text-slate-400">History Shards</div>
-            <div class="text-lg font-bold font-mono text-indigo-400">4,096</div>
-            <div class="text-[10px] text-slate-400">Consistent Ringpop</div>
-          </div>
-          <div class="p-3.5 rounded-xl bg-slate-900/90 border border-slate-800">
-            <div class="text-[11px] font-mono text-slate-400">Sticky Cache Hit</div>
-            <div class="text-lg font-bold font-mono text-emerald-400">99.4%</div>
-            <div class="text-[10px] text-slate-400">Zero-replay fast path</div>
-          </div>
-          <div class="p-3.5 rounded-xl bg-slate-900/90 border border-slate-800">
-            <div class="text-[11px] font-mono text-slate-400">Worker Connectivity</div>
-            <div class="text-lg font-bold font-mono text-amber-400">gRPC Poll</div>
-            <div class="text-[10px] text-slate-400">Outbound-only TCP</div>
-          </div>
-          <div class="p-3.5 rounded-xl bg-slate-900/90 border border-slate-800">
-            <div class="text-[11px] font-mono text-slate-400">State Recovery</div>
-            <div class="text-lg font-bold font-mono text-purple-400">Event Log</div>
-            <div class="text-[10px] text-slate-400">No duplicate side-effects</div>
-          </div>
-        </div>
-      </div>
-    </div>
+    ${renderTopicIntro(TemporalMeta)}
 
     <!-- SECTION 1: INTERACTIVE WORKER CRASH & REPLAY SIMULATOR -->
     <div class="glass-card rounded-2xl p-6 border border-slate-800 space-y-6">
       <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-800 pb-4">
         <div>
           <div class="flex items-center gap-2">
-            <i data-lucide="play-circle" class="w-5 h-5 text-indigo-400"></i>
+            <i data-lucide="play-circle" class="w-5 h-5 text-sky-400"></i>
             <h2 class="text-lg font-bold text-white">Interactive Replay Simulator: Event History Log vs. Worker State Machine</h2>
           </div>
           <p class="text-xs text-slate-400 mt-1">
@@ -298,7 +332,7 @@ function renderTemporalView(container) {
           <button id="temp-prev-btn" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-mono flex items-center gap-1 border border-slate-700">
             <i data-lucide="chevron-left" class="w-3.5 h-3.5"></i> Prev
           </button>
-          <button id="temp-next-btn" class="px-3.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-mono font-semibold flex items-center gap-1 shadow-lg shadow-indigo-600/20">
+          <button id="temp-next-btn" class="px-3.5 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-xs font-mono font-semibold flex items-center gap-1 shadow-lg shadow-sky-600/20">
             Step Forward <i data-lucide="chevron-right" class="w-3.5 h-3.5"></i>
           </button>
           <button id="temp-crash-btn" class="px-3 py-1.5 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/40 text-xs font-mono flex items-center gap-1.5">
@@ -320,12 +354,12 @@ function renderTemporalView(container) {
       <div class="rounded-xl bg-slate-950 border border-slate-800/90 p-3 relative">
         <div class="flex flex-wrap items-center justify-between gap-2 mb-2 px-2">
           <div class="flex items-center gap-2 text-xs font-mono">
-            <span class="px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30" id="temp-sim-badge">STEP 0 / 7</span>
+            <span class="px-2 py-0.5 rounded bg-sky-500/20 text-sky-300 border border-sky-500/30" id="temp-sim-badge">STEP 0 / 7</span>
             <span class="text-white font-semibold" id="temp-sim-title">Client Starts Workflow Execution</span>
           </div>
           <div class="flex items-center gap-3 text-[11px] font-mono">
             <span class="text-slate-400">Active Worker: <strong id="temp-sim-worker" class="text-emerald-300">Worker-Pod-A</strong></span>
-            <span class="text-slate-400">SDK Mode: <strong id="temp-sim-mode" class="text-indigo-300">LIVE EXECUTION</strong></span>
+            <span class="text-slate-400">SDK Mode: <strong id="temp-sim-mode" class="text-sky-300">LIVE EXECUTION</strong></span>
           </div>
         </div>
         <canvas id="temporal-replay-canvas" class="w-full h-[230px] rounded-lg bg-slate-950 block"></canvas>
@@ -338,7 +372,7 @@ function renderTemporalView(container) {
         <div class="lg:col-span-4 rounded-xl bg-slate-900/80 border border-slate-800 p-4 flex flex-col justify-between">
           <div>
             <div class="flex items-center justify-between mb-3">
-              <span class="text-xs font-mono uppercase tracking-wider text-indigo-400 font-bold flex items-center gap-1.5">
+              <span class="text-xs font-mono uppercase tracking-wider text-sky-400 font-bold flex items-center gap-1.5">
                 <i data-lucide="code-2" class="w-4 h-4"></i> Workflow Definition (V8 Sandbox)
               </span>
               <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-300" id="temp-code-version-badge">Deterministic v1</span>
@@ -364,9 +398,9 @@ function renderTemporalView(container) {
           </div>
 
           <!-- Determinism Validator Status -->
-          <div id="temp-determinism-panel" class="p-3 rounded-xl bg-slate-950 border border-indigo-500/30 space-y-1.5">
+          <div id="temp-determinism-panel" class="p-3 rounded-xl bg-slate-950 border border-sky-500/30 space-y-1.5">
             <div class="flex items-center justify-between">
-              <span class="text-[11px] font-mono font-bold text-indigo-300 flex items-center gap-1.5">
+              <span class="text-[11px] font-mono font-bold text-sky-300 flex items-center gap-1.5">
                 <i data-lucide="shield-check" class="w-3.5 h-3.5"></i> Command-to-Event Matcher
               </span>
               <span id="temp-det-status-pill" class="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300">VALIDATED</span>
@@ -380,10 +414,10 @@ function renderTemporalView(container) {
         <!-- Col 3: Immutable Event History Log in History Service -->
         <div class="lg:col-span-4 rounded-xl bg-slate-900/80 border border-slate-800 p-4 flex flex-col">
           <div class="flex items-center justify-between mb-3">
-            <span class="text-xs font-mono uppercase tracking-wider text-purple-400 font-bold flex items-center gap-1.5">
+            <span class="text-xs font-mono uppercase tracking-wider text-cyan-400 font-bold flex items-center gap-1.5">
               <i data-lucide="scroll-text" class="w-4 h-4"></i> History Service Event Log
             </span>
-            <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-purple-500/15 text-purple-300 border border-purple-500/30">Shard #142 · Durable</span>
+            <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-cyan-500/15 text-cyan-300 border border-cyan-500/30">Shard #142 · Durable</span>
           </div>
           <div id="temp-event-log-list" class="space-y-1.5 max-h-[290px] overflow-y-auto pr-1 font-mono text-[11px]"></div>
         </div>
@@ -397,7 +431,7 @@ function renderTemporalView(container) {
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-4">
           <div>
             <h3 class="text-base font-bold text-white flex items-center gap-2">
-              <i data-lucide="layers" class="w-4 h-4 text-indigo-400"></i>
+              <i data-lucide="layers" class="w-4 h-4 text-sky-400"></i>
               Temporal Server Subsystem Deep-Dive
             </h3>
             <p class="text-xs text-slate-400">Select any internal service to inspect its sharding, persistence protocol, and failure modes.</p>
@@ -406,7 +440,7 @@ function renderTemporalView(container) {
 
         <!-- Interactive Component Buttons -->
         <div class="grid grid-cols-2 sm:grid-cols-5 gap-2" id="temp-service-tabs">
-          <button data-service="history" class="temp-svc-btn p-2.5 rounded-xl border text-left transition-all bg-indigo-500/20 border-indigo-500 text-white">
+          <button data-service="history" class="temp-svc-btn p-2.5 rounded-xl border text-left transition-all bg-sky-500/20 border-sky-500 text-white">
             <div class="text-xs font-bold">History Svc</div>
             <div class="text-[10px] text-slate-400 font-mono">MutableState</div>
           </button>
@@ -449,8 +483,8 @@ function renderTemporalView(container) {
           <div class="grid grid-cols-3 gap-3 bg-slate-900/80 p-3.5 rounded-xl border border-slate-800 text-xs">
             <div>
               <label class="text-[10px] font-mono text-slate-400 block">Initial Interval</label>
-              <input id="temp-retry-init" type="range" min="1" max="10" value="2" class="w-full accent-indigo-500 mt-1" />
-              <span id="temp-retry-init-val" class="font-mono text-indigo-300 font-bold">2s</span>
+              <input id="temp-retry-init" type="range" min="1" max="10" value="2" class="w-full accent-sky-500 mt-1" />
+              <span id="temp-retry-init-val" class="font-mono text-sky-300 font-bold">2s</span>
             </div>
             <div>
               <label class="text-[10px] font-mono text-slate-400 block">Backoff Coeff</label>
@@ -524,9 +558,9 @@ function renderTemporalView(container) {
       if (isCurrent) {
         bg = isCrash ? 'bg-rose-500/25 border-rose-500 text-rose-200 font-bold' :
              isReplay ? 'bg-amber-500/25 border-amber-500 text-amber-200 font-bold' :
-             'bg-indigo-500/25 border-indigo-500 text-indigo-200 font-bold';
+             'bg-sky-500/25 border-sky-500 text-sky-200 font-bold';
       } else if (idx < currentStepIdx) {
-        bg = 'bg-slate-900/90 border-indigo-500/40 text-indigo-300';
+        bg = 'bg-slate-900/90 border-sky-500/40 text-sky-300';
       }
       return `
         <button data-step-idx="${idx}" class="temp-step-Jump p-2 rounded-lg border text-left transition-all ${bg}">
@@ -577,11 +611,11 @@ function renderTemporalView(container) {
       modeEl.textContent = isNonDetFailure ? 'PANIC: HISTORY MISMATCH' : stepObj.sdkMode;
       modeEl.className = isNonDetFailure ? 'text-rose-400' :
                           stepObj.phase === 'REPLAY_RECOVERY' ? 'text-amber-300' :
-                          stepObj.phase === 'CRASH_EVENT' ? 'text-rose-400' : 'text-indigo-300';
+                          stepObj.phase === 'CRASH_EVENT' ? 'text-rose-400' : 'text-sky-300';
     }
     if (descEl) {
       descEl.innerHTML = isNonDetFailure
-        ? `<span class="text-rose-400 font-bold">[NON-DETERMINISTIC ERROR DETECTED AT EVENT #5]</span> Worker-Pod-B executed hot-deployed code that emitted <code class="text-amber-300">ScheduleActivityTask(SendPromoEmail)</code> as its first command, but the persisted History Log has <code class="text-purple-300">Event #5: ActivityTaskScheduled(ReserveInventory)</code>! Temporal halts the WorkflowTask and preserves state until code is rolled back or patched with <code class="text-emerald-300">workflow.patched()</code>.`
+        ? `<span class="text-rose-400 font-bold">[NON-DETERMINISTIC ERROR DETECTED AT EVENT #5]</span> Worker-Pod-B executed hot-deployed code that emitted <code class="text-amber-300">ScheduleActivityTask(SendPromoEmail)</code> as its first command, but the persisted History Log has <code class="text-cyan-300">Event #5: ActivityTaskScheduled(ReserveInventory)</code>! Temporal halts the WorkflowTask and preserves state until code is rolled back or patched with <code class="text-emerald-300">workflow.patched()</code>.`
         : stepObj.description;
     }
 
@@ -597,7 +631,7 @@ function renderTemporalView(container) {
       codeContainer.innerHTML = lines.map((line, i) => {
         const lineNum = i + 1;
         const active = isNonDetFailure ? (lineNum === 3) : (lineNum === stepObj.codeHighlightLine);
-        return `<div class="px-2 py-0.5 rounded ${active ? (isNonDetFailure ? 'bg-rose-500/30 text-white border-l-2 border-rose-400 font-bold' : 'bg-indigo-500/25 text-white border-l-2 border-indigo-400 font-semibold') : 'text-slate-400'}">${line}</div>`;
+        return `<div class="px-2 py-0.5 rounded ${active ? (isNonDetFailure ? 'bg-rose-500/30 text-white border-l-2 border-rose-400 font-bold' : 'bg-sky-500/25 text-white border-l-2 border-indigo-400 font-semibold') : 'text-slate-400'}">${line}</div>`;
       }).join('');
     }
 
@@ -643,7 +677,7 @@ function renderTemporalView(container) {
         detStatus.className = 'text-[10px] font-mono px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 font-bold';
         detDetail.textContent = `Command matched Event #${stepObj.eventId}. Resolved stored result from log in 0.02ms without re-running external Activity.`;
       } else {
-        detPanel.className = 'p-3 rounded-xl bg-slate-950 border border-indigo-500/30 space-y-1.5';
+        detPanel.className = 'p-3 rounded-xl bg-slate-950 border border-sky-500/30 space-y-1.5';
         detStatus.textContent = 'DETERMINISTIC OK';
         detStatus.className = 'text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300';
         detDetail.textContent = 'Emitted commands match Event History log sequence.';
@@ -719,7 +753,7 @@ function renderTemporalView(container) {
     document.querySelectorAll('.temp-svc-btn').forEach(btn => {
       const active = btn.getAttribute('data-service') === key;
       btn.className = active
-        ? 'temp-svc-btn p-2.5 rounded-xl border text-left transition-all bg-indigo-500/20 border-indigo-500 text-white shadow-md'
+        ? 'temp-svc-btn p-2.5 rounded-xl border text-left transition-all bg-sky-500/20 border-sky-500 text-white shadow-md'
         : 'temp-svc-btn p-2.5 rounded-xl border text-left transition-all bg-slate-900/80 border-slate-800 text-slate-300 hover:border-slate-700';
     });
     const panel = document.getElementById('temp-service-detail-panel');
@@ -727,16 +761,16 @@ function renderTemporalView(container) {
     panel.innerHTML = `
       <div class="flex flex-wrap items-center justify-between gap-2">
         <h4 class="text-sm font-bold text-white">${svc.title}</h4>
-        <span class="text-[11px] font-mono px-2.5 py-0.5 rounded-full bg-indigo-500/15 text-indigo-300 border border-indigo-500/30">${svc.badge}</span>
+        <span class="text-[11px] font-mono px-2.5 py-0.5 rounded-full bg-sky-500/15 text-sky-300 border border-sky-500/30">${svc.badge}</span>
       </div>
       <p class="text-xs text-slate-300 leading-relaxed">${svc.summary}</p>
       <div class="space-y-1.5">
         <div class="text-[11px] font-mono uppercase tracking-wider text-slate-400 font-semibold">Architectural Internals:</div>
         <ul class="space-y-1.5 text-xs text-slate-300">
-          ${svc.internals.map(item => `<li class="flex items-start gap-2"><span class="text-indigo-400 mt-0.5">▸</span><span>${item}</span></li>`).join('')}
+          ${svc.internals.map(item => `<li class="flex items-start gap-2"><span class="text-sky-400 mt-0.5">▸</span><span>${item}</span></li>`).join('')}
         </ul>
       </div>
-      <pre class="code-block bg-slate-950 p-3 rounded-lg border border-slate-800 text-indigo-200 overflow-x-auto">${svc.protocolSnippet}</pre>
+      <pre class="code-block bg-slate-950 p-3 rounded-lg border border-slate-800 text-sky-200 overflow-x-auto">${svc.protocolSnippet}</pre>
     `;
   }
 
@@ -756,8 +790,8 @@ function renderTemporalView(container) {
         datasets: [{
           label: 'Backoff Wait Delay (Seconds)',
           data: [0, 2, 4, 8, 16],
-          backgroundColor: 'rgba(99, 102, 241, 0.55)',
-          borderColor: '#818cf8',
+          backgroundColor: 'rgba(14, 165, 233, 0.55)',
+          borderColor: '#38bdf8',
           borderWidth: 1.5,
           borderRadius: 6
         }]
@@ -852,7 +886,7 @@ function renderTemporalView(container) {
       }
     };
 
-    drawNode(historyBox, '#818cf8', 'rgba(30, 27, 75, 0.55)', `Events Stored: #1..#${currentStepIdx >= 4 ? 15 : stepObj.eventId}`);
+    drawNode(historyBox, '#38bdf8', 'rgba(12, 74, 110, 0.55)', `Events Stored: #1..#${currentStepIdx >= 4 ? 15 : stepObj.eventId}`);
     drawNode(matchingBox, '#34d399', 'rgba(6, 78, 59, 0.35)', isCrash ? 'Sticky Timeout (5s)' : 'Long-Poll gRPC');
     drawNode(
       workerBox,
@@ -866,7 +900,7 @@ function renderTemporalView(container) {
     for (let i = 0; i < numBlocks; i++) {
       const bx = historyBox.x + 12 + (i % 4) * 42;
       const by = historyBox.y + 56 + Math.floor(i / 4) * 32;
-      ctx.fillStyle = isReplay && i <= (currentStepIdx - 3) ? '#f59e0b' : '#6366f1';
+      ctx.fillStyle = isReplay && i <= (currentStepIdx - 3) ? '#f59e0b' : '#0284c7';
       ctx.beginPath();
       ctx.roundRect(bx, by, 36, 22, 4);
       ctx.fill();
@@ -905,7 +939,7 @@ function renderTemporalView(container) {
     if (isReplay) {
       drawBeam(historyBox.x + historyBox.w, 95, workerBox.x, 95, '#fbbf24', 'GetWorkflowExecutionHistory(#1..#15)', false);
     } else if (!isCrash) {
-      drawBeam(historyBox.x + historyBox.w, 85, matchingBox.x, 85, '#818cf8', 'TransferTask', false);
+      drawBeam(historyBox.x + historyBox.w, 85, matchingBox.x, 85, '#38bdf8', 'TransferTask', false);
       drawBeam(matchingBox.x + matchingBox.w, 85, workerBox.x, 85, '#34d399', 'PollTask Dispatch', false);
       drawBeam(workerBox.x, 145, historyBox.x + historyBox.w, 145, '#38bdf8', 'RespondTaskCompleted(Commands)', true);
     }

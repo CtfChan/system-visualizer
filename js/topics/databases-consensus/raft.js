@@ -1,27 +1,41 @@
 // ============================================================================
 // SECONDARY CATALOG 4: RAFT CONSENSUS (/#raft)
 // Leader Election, Log Replication, Terms, Heartbeats, Split Votes
+
+const RaftMeta = {
+  accent: 'rose',
+  category: 'Consensus Protocols',
+  title: 'Raft Consensus',
+  tags: ['Leader-based', 'Replicated log', 'etcd · CockroachDB · TiKV'],
+  summary: 'Consensus for a replicated log. Time is divided into <strong>terms</strong>; each term has at most one leader, elected by majority vote. The leader appends client commands and replicates them with <code>AppendEntries</code>; an entry is <strong>committed</strong> once stored on a majority. A candidate can only win if its log is at least as up-to-date as the voters’, so committed entries are never lost.',
+  constraints: [
+    ['Fault tolerance', '2f+1 voters tolerate f failures. 3 nodes → 1 failure, 5 nodes → 2. Even counts add cost without extra tolerance.'],
+    ['Throughput', 'Every write flows through the single leader; the leader’s disk and NIC are the ceiling. Shard into many Raft groups (Multi-Raft) to scale.'],
+    ['Commit latency', '1 RTT to a majority + fsync. Spreading voters across regions puts a WAN RTT on every write.'],
+    ['Failover gap', 'Leader loss → no writes until an election timeout (typically 150–300 ms+) fires and a new leader wins.'],
+    ['Linearizable reads', 'Need a ReadIndex round-trip or a leader lease (which relies on bounded clock drift). Follower reads are stale by default.'],
+    ['Membership changes', 'Must use joint consensus or one-at-a-time changes to avoid two majorities.']
+  ],
+  useWhen: [
+    'Building a replicated state machine: metadata/config stores, lock services, per-shard replication.',
+    'You want a protocol that is well-specified and widely implemented (etcd/raft, hashicorp/raft).'
+  ],
+  avoidWhen: [
+    'An existing store (etcd, a managed DB) already gives you the guarantees — don’t roll your own.',
+    'You need many voters (>7) or geo-distributed voters with strict write latency budgets.',
+    'Throughput needs exceed one leader and you can’t shard the state.'
+  ]
+};
 // ============================================================================
 function renderRaftView(container) {
   container.innerHTML = `
-    <div class="glass-card rounded-2xl p-6 lg:p-8 border border-rose-500/30">
-      <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-        <div class="space-y-3 max-w-3xl">
-          <div class="flex flex-wrap items-center gap-2">
-            <span class="px-2.5 py-1 rounded-full text-[11px] font-mono uppercase tracking-wider bg-rose-500/20 text-rose-300 border border-rose-500/40 font-semibold">Consensus · Raft</span>
-            <span class="px-2.5 py-1 rounded-full text-[11px] font-mono bg-slate-800 text-slate-300 border border-slate-700">Randomized Election Timeouts (150–300ms)</span>
-            <span class="px-2.5 py-1 rounded-full text-[11px] font-mono bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">Log Matching Safety Property</span>
-          </div>
-          <h1 class="text-2xl sm:text-3xl font-extrabold text-white">Raft Consensus State Machine &amp; Split-Vote Simulator</h1>
-          <p class="text-sm text-slate-300 leading-relaxed">
-            Raft decomposes replicated state machine consensus into three sub-problems: <strong>Leader Election</strong> (monotonic <code class="text-rose-300">currentTerm</code> + randomized timeouts), <strong>Log Replication</strong> (<code class="text-emerald-300">AppendEntries</code> RPCs enforcing prevLogIndex/prevLogTerm), and <strong>Safety</strong> (Election Restriction: a candidate can only win votes if its log is at least as up-to-date as the quorum).
-          </p>
-        </div>
-        <div class="flex flex-wrap gap-2">
-          <button id="raft-append-btn" class="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-mono font-bold">+ Append Client Command</button>
-          <button id="raft-kill-leader-btn" class="px-3.5 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-mono font-bold">💥 Kill Leader &amp; Elect</button>
-          <button id="raft-split-vote-btn" class="px-3.5 py-2 rounded-xl bg-amber-500/20 border border-amber-500/40 text-amber-200 text-xs font-mono font-bold">⚡ Simulate Split Vote</button>
-        </div>
+    ${renderTopicIntro(RaftMeta)}
+    <div class="glass-card rounded-2xl px-5 py-3 border border-slate-800 flex flex-wrap items-center justify-between gap-3">
+      <span class="text-[11px] font-mono uppercase tracking-wider text-slate-400">Simulator controls</span>
+      <div class="flex flex-wrap gap-2">
+      <button id="raft-append-btn" class="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-mono font-bold">+ Append Client Command</button>
+      <button id="raft-kill-leader-btn" class="px-3.5 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-mono font-bold">💥 Kill Leader &amp; Elect</button>
+      <button id="raft-split-vote-btn" class="px-3.5 py-2 rounded-xl bg-amber-500/20 border border-amber-500/40 text-amber-200 text-xs font-mono font-bold">⚡ Simulate Split Vote</button>
       </div>
     </div>
 

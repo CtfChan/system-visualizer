@@ -34,7 +34,7 @@ function initThreeTopologyModal(currentRoute) {
 
   // Central Coordinator / Ring Core
   const coreGeo = new THREE.IcosahedronGeometry(1.45, 1);
-  const coreMat = new THREE.MeshBasicMaterial({ color: 0x6366f1, wireframe: true });
+  const coreMat = new THREE.MeshBasicMaterial({ color: 0x0ea5e9, wireframe: true });
   const coreMesh = new THREE.Mesh(coreGeo, coreMat);
   group.add(coreMesh);
 
@@ -69,7 +69,7 @@ function initThreeTopologyModal(currentRoute) {
   if (legendEl) {
     legendEl.innerHTML = `
       <div class="p-2.5 rounded bg-slate-950 border border-slate-800 text-slate-300">
-        <span class="text-indigo-400 font-bold">Core Wireframe:</span> Coordinator / History Ring / Hash Router
+        <span class="text-sky-400 font-bold">Core Wireframe:</span> Coordinator / History Ring / Hash Router
       </div>
       <div class="p-2.5 rounded bg-slate-950 border border-slate-800 text-slate-300">
         <span class="text-emerald-400 font-bold">Emerald Nodes:</span> Active Quorum Replicas / Worker Pods

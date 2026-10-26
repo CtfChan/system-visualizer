@@ -1,24 +1,35 @@
 // ============================================================================
 // SECONDARY CATALOG 2: COCKROACHDB (/#cockroachdb)
-// Multi-Raft 64MB Ranges, Range Leases, Hybrid Logical Clocks (HLC) & Read Restart
+// Multi-Raft Ranges, Range Leases, Hybrid Logical Clocks (HLC) & Read Restart
+
+const CockroachMeta = {
+  accent: 'teal',
+  category: 'Storage & Databases',
+  title: 'CockroachDB',
+  tags: ['Postgres wire protocol', 'Multi-Raft', 'Hybrid Logical Clocks'],
+  summary: 'Distributed SQL that runs on commodity clocks. The keyspace is split into <strong>ranges</strong> (default max 512 MiB); each range is its own Raft group, and one replica holds the <strong>range lease</strong> and serves consistent reads locally. Instead of TrueTime it uses <strong>HLC timestamps</strong> plus a configured <code>max-offset</code>: a read that sees a value inside its uncertainty window <code>(t_read, t_read + max_offset]</code> must restart at a higher timestamp.',
+  constraints: [
+    ['Isolation', 'SERIALIZABLE by default. Contended transactions fail with 40001 and must be retried by the client — design for retries.'],
+    ['Clock skew', 'Default max-offset is 500 ms. A node whose clock drifts beyond the tolerance shuts itself down to protect consistency. NTP/chrony is mandatory.'],
+    ['Write latency', 'One Raft quorum RTT per write. Multi-region tables pay cross-region RTT unless using REGIONAL BY ROW / GLOBAL table localities.'],
+    ['Hot ranges', 'Sequential keys concentrate load on one range until it splits. Prefer UUIDs or hash-sharded indexes.'],
+    ['Postgres compatibility', 'Wire-compatible, not a drop-in: many extensions and some features (e.g. certain trigger/extension behaviour) are unsupported.']
+  ],
+  useWhen: [
+    'You need horizontally scalable SQL with strong consistency and you self-host or run multi-cloud.',
+    'Survivability requirements (tolerate an AZ or region loss with no data loss).',
+    'Data residency: pin rows to regions with REGIONAL BY ROW.'
+  ],
+  avoidWhen: [
+    'A single Postgres node fits — lower latency, full extension ecosystem.',
+    'Highly contended hot-row workloads (counters, queues) that cause retry storms.',
+    'Analytical / large-scan workloads.'
+  ]
+};
 // ============================================================================
 function renderCockroachDBView(container) {
   container.innerHTML = `
-    <div class="glass-card rounded-2xl p-6 lg:p-8 border border-teal-500/30">
-      <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-        <div class="space-y-3 max-w-3xl">
-          <div class="flex flex-wrap items-center gap-2">
-            <span class="px-2.5 py-1 rounded-full text-[11px] font-mono uppercase tracking-wider bg-teal-500/20 text-teal-300 border border-teal-500/40 font-semibold">Databases &amp; Consensus · CockroachDB</span>
-            <span class="px-2.5 py-1 rounded-full text-[11px] font-mono bg-slate-800 text-slate-300 border border-slate-700">Multi-Raft (64MB Ranges)</span>
-            <span class="px-2.5 py-1 rounded-full text-[11px] font-mono bg-amber-500/15 text-amber-300 border border-amber-500/30">Hybrid Logical Clocks (HLC)</span>
-          </div>
-          <h1 class="text-2xl sm:text-3xl font-extrabold text-white">CockroachDB: Multi-Raft, Range Leases &amp; Hybrid Logical Clocks</h1>
-          <p class="text-sm text-slate-300 leading-relaxed">
-            Designed to run on commodity cloud VMs using software NTP clocks instead of atomic hardware clocks, CockroachDB combines <strong>Hybrid Logical Clocks <code class="text-teal-300">(physical_time, logical_counter)</code></strong>, <strong>Multi-Raft 64MB keyspace ranges</strong>, and <strong>Read Refresh / Uncertainty Restarts</strong> across the window <code class="text-amber-300">[t_read, t_read + max_offset]</code>.
-          </p>
-        </div>
-      </div>
-    </div>
+    ${renderTopicIntro(CockroachMeta)}
 
     <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
       <!-- Left 7 Cols: Interactive HLC Uncertainty Interval & Read Restart Simulator -->
@@ -30,7 +41,7 @@ function renderCockroachDBView(container) {
               HLC Uncertainty Interval <code class="text-amber-300">[t_read, t_read + max_offset]</code> Simulator
             </h2>
             <p class="text-xs text-slate-400 mt-0.5">
-              Drag the encountered MVCC Tuple Timestamp <code class="text-indigo-300">t_tuple</code> relative to Transaction <code class="text-teal-300">t_read = 100ms</code> (with <code class="text-amber-300">max_offset = 250ms</code>) to see when CockroachDB triggers a <strong>Read Restart</strong>.
+              Drag the encountered MVCC Tuple Timestamp <code class="text-sky-300">t_tuple</code> relative to Transaction <code class="text-teal-300">t_read = 100ms</code> (this demo uses <code class="text-amber-300">max_offset = 250ms</code>; production default is 500 ms) to see when CockroachDB triggers a <strong>Read Restart</strong>.
             </p>
           </div>
         </div>
@@ -71,16 +82,16 @@ function renderCockroachDBView(container) {
         </h3>
         <div class="space-y-3 text-xs text-slate-300 leading-relaxed">
           <div class="p-3.5 rounded-xl bg-slate-900 border border-slate-800">
-            <div class="font-mono font-bold text-teal-300 mb-1">1. 64 MB Ordered Keyspace Ranges</div>
-            <p>The monolithic logical keyspace is sorted lexicographically and automatically split into contiguous 64 MB <strong>Ranges</strong>. Each Range is an independent 3- or 5-replica Raft consensus group stored in Pebble (Go RocksDB-inspired LSM).</p>
+            <div class="font-mono font-bold text-teal-300 mb-1">1. Ordered Keyspace Ranges (≤ 512 MiB)</div>
+            <p>The monolithic logical keyspace is sorted lexicographically and automatically split into contiguous <strong>Ranges</strong> (default max 512 MiB). Each Range is an independent 3- or 5-replica Raft consensus group stored in Pebble (a Go LSM engine inspired by RocksDB).</p>
           </div>
           <div class="p-3.5 rounded-xl bg-slate-900 border border-slate-800">
             <div class="font-mono font-bold text-amber-300 mb-1">2. Range Leaseholder Optimization</div>
-            <p>A single replica holds a time-bounded <strong>Range Lease</strong> (almost always co-located with the Raft Leader). Because all writes must go through the Leaseholder, the Leaseholder can serve <strong>linearizable reads locally from Pebble with 0 Raft roundtrips</strong>!</p>
+            <p>A single replica holds a time-bounded <strong>Range Lease</strong> (almost always co-located with the Raft Leader). Because all writes must go through the Leaseholder, the leaseholder can serve <strong>consistent reads locally without a Raft round-trip</strong>.</p>
           </div>
           <div class="p-3.5 rounded-xl bg-slate-900 border border-slate-800">
-            <div class="font-mono font-bold text-indigo-300 mb-1">3. Parallel Commits (1-RTT Transactions)</div>
-            <p>CockroachDB pipelines writing transaction intent records and writing the <code class="text-teal-300">STAGING</code> transaction record concurrently in a single consensus roundtrip.</p>
+            <div class="font-mono font-bold text-sky-300 mb-1">3. Parallel Commits (1-RTT Transactions)</div>
+            <p>Intent writes and the <code class="text-teal-300">STAGING</code> transaction record are replicated in parallel, so a transaction commits in one consensus round-trip instead of two.</p>
           </div>
         </div>
       </div>
@@ -101,8 +112,8 @@ function renderCockroachDBView(container) {
       box.className = 'p-4 rounded-xl border border-amber-500 bg-amber-950/35 text-xs font-mono space-y-1.5';
       box.innerHTML = `<div class="text-amber-300 font-bold">🔄 UNCERTAINTY INTERVAL CONFLICT (100ms &lt; t_tuple = ${tTuple}ms ≤ 350ms) -> READ RESTART!</div><p class="text-slate-200">Because NTP clocks across nodes can drift by up to max_offset (250ms), CockroachDB cannot tell if t_tuple=${tTuple}ms actually happened before t_read=100ms in real time! It bumps <code class="text-white">t_read = ${tTuple}ms</code> and restarts the read cleanly.</p>`;
     } else {
-      box.className = 'p-4 rounded-xl border border-indigo-500/40 bg-indigo-950/25 text-xs font-mono space-y-1.5';
-      box.innerHTML = `<div class="text-indigo-300 font-bold">⏭ DEFINITELY IN THE FUTURE (t_tuple = ${tTuple}ms &gt; t_read + max_offset = 350ms)</div><p class="text-slate-300">Even under worst-case clock skew, this tuple was written after our snapshot started. Safely ignored (invisible to snapshot).</p>`;
+      box.className = 'p-4 rounded-xl border border-sky-500/40 bg-sky-950/25 text-xs font-mono space-y-1.5';
+      box.innerHTML = `<div class="text-sky-300 font-bold">⏭ DEFINITELY IN THE FUTURE (t_tuple = ${tTuple}ms &gt; t_read + max_offset = 350ms)</div><p class="text-slate-300">Even under worst-case clock skew, this tuple was written after our snapshot started. Safely ignored (invisible to snapshot).</p>`;
     }
   }
 

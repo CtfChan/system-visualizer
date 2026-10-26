@@ -1,8 +1,37 @@
 // ============================================================================
-// PRIORITY 2: AMAZON DYNAMODB DEEP-DIVE (STORAGE, KEYS & INDEXING /#dynamodb)
+// AMAZON DYNAMODB DEEP-DIVE (STORAGE, KEYS & INDEXING /#dynamodb)
 // ============================================================================
+
+const DynamoMeta = {
+  accent: 'amber',
+  category: 'Storage & Databases',
+  title: 'Amazon DynamoDB',
+  tags: ['Managed KV / document', 'Hash-partitioned', '3-AZ Multi-Paxos per partition'],
+  summary: 'Fully managed key-value store. A stateless request router hashes the <strong>partition key (PK)</strong> to pick a partition; each partition is a 3-replica Multi-Paxos group spread across AZs. Items sharing a PK form an <strong>item collection</strong> stored sorted by <strong>sort key (SK)</strong>, which is what makes range queries cheap. Everything else — GSIs, LSIs, single-table design — follows from that layout.',
+  constraints: [
+    ['Per-partition throughput', '3,000 RCU / 1,000 WCU per partition. A hot PK throttles even if table-level capacity is idle. Adaptive capacity helps, but cannot exceed the per-partition cap.'],
+    ['Item size', '400 KB max per item, including attribute names.'],
+    ['Query page size', 'Query/Scan return at most 1 MB per call — paginate with LastEvaluatedKey.'],
+    ['GSI', 'Eventually consistent only. Separate capacity; an under-provisioned GSI back-pressures (throttles) writes to the base table. Default quota 20 per table.'],
+    ['LSI', 'Same PK, alternate SK. Must be created with the table, max 5. Item collection (base + LSI) capped at 10 GB per PK value.'],
+    ['Transactions', 'Up to 100 items per TransactWriteItems; each item costs 2× WCU. No cross-region transactional guarantees on global tables.'],
+    ['Query model', 'No joins, no ad-hoc secondary predicates without an index. FilterExpression runs after the read — you still pay for scanned items.']
+  ],
+  useWhen: [
+    'Access patterns are known up front and can be expressed as PK lookups + SK ranges.',
+    'You need predictable single-digit-ms latency at any scale with zero ops.',
+    'Spiky or serverless workloads (on-demand capacity, Lambda, per-request billing).',
+    '1:N relationships modelled as item collections (single-table design).'
+  ],
+  avoidWhen: [
+    'Queries are ad-hoc, analytical, or still evolving — every new pattern needs a new index.',
+    'Your natural partition key has low cardinality or is time-monotonic (hot partitions).',
+    'Workload is relational with many multi-entity transactions and joins.',
+    'You need strongly consistent reads on secondary indexes across partitions.'
+  ]
+};
 const DynamoPartitions = [
-  { id: 1, name: 'Partition 1', rangeStart: '0x0000', rangeEnd: '0x3FFF', leaderAz: 'us-east-1a', replicas: ['1a (Leader)', '1b', '1c'], color: '#6366f1' },
+  { id: 1, name: 'Partition 1', rangeStart: '0x0000', rangeEnd: '0x3FFF', leaderAz: 'us-east-1a', replicas: ['1a (Leader)', '1b', '1c'], color: '#0284c7' },
   { id: 2, name: 'Partition 2', rangeStart: '0x4000', rangeEnd: '0x7FFF', leaderAz: 'us-east-1b', replicas: ['1b (Leader)', '1c', '1a'], color: '#10b981' },
   { id: 3, name: 'Partition 3', rangeStart: '0x8000', rangeEnd: '0xBFFF', leaderAz: 'us-east-1c', replicas: ['1c (Leader)', '1a', '1b'], color: '#f59e0b' },
   { id: 4, name: 'Partition 4', rangeStart: '0xC000', rangeEnd: '0xFFFF', leaderAz: 'us-east-1a', replicas: ['1a (Leader)', '1b', '1c'], color: '#ec4899' }
@@ -30,47 +59,7 @@ function resolveDynamoPartition(pkString) {
 
 function renderDynamoDBView(container) {
   container.innerHTML = `
-    <!-- HERO BANNER -->
-    <div class="glass-card rounded-2xl p-6 lg:p-8 border border-amber-500/30 relative overflow-hidden">
-      <div class="absolute -right-20 -top-20 w-96 h-96 bg-amber-500/10 rounded-full blur-3xl pointer-events-none"></div>
-      <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-        <div class="space-y-3 max-w-3xl">
-          <div class="flex flex-wrap items-center gap-2">
-            <span class="px-2.5 py-1 rounded-full text-[11px] font-mono uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-500/40 font-semibold">Priority 2 · Storage &amp; Data Modeling</span>
-            <span class="px-2.5 py-1 rounded-full text-[11px] font-mono bg-slate-800 text-slate-300 border border-slate-700">MD5 Consistent Hash Ring</span>
-            <span class="px-2.5 py-1 rounded-full text-[11px] font-mono bg-indigo-500/15 text-indigo-300 border border-indigo-500/30">B-Tree Item Collections</span>
-          </div>
-          <h1 class="text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight text-white">
-            Amazon DynamoDB Architecture &amp; Indexing Deep-Dive
-          </h1>
-          <p class="text-sm text-slate-300 leading-relaxed">
-            Under the hood, DynamoDB routes requests via stateless <strong>Request Routers</strong> using an <strong>MD5 hash of the Partition Key (PK)</strong> to locate a 3-way Paxos storage partition, then stores items sharing that PK in an on-disk <strong>B-Tree ordered lexicographically by Sort Key (SK)</strong>.
-          </p>
-        </div>
-        <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-2 gap-3 shrink-0">
-          <div class="p-3.5 rounded-xl bg-slate-900/90 border border-slate-800">
-            <div class="text-[11px] font-mono text-slate-400">Max Partition Throughput</div>
-            <div class="text-lg font-bold font-mono text-amber-400">3k RCU / 1k WCU</div>
-            <div class="text-[10px] text-slate-400">10 GB physical SSD slice</div>
-          </div>
-          <div class="p-3.5 rounded-xl bg-slate-900/90 border border-slate-800">
-            <div class="text-[11px] font-mono text-slate-400">LSI Collection Limit</div>
-            <div class="text-lg font-bold font-mono text-rose-400">10.0 GB Hard</div>
-            <div class="text-[10px] text-slate-400">Per PK value (Base + LSI)</div>
-          </div>
-          <div class="p-3.5 rounded-xl bg-slate-900/90 border border-slate-800">
-            <div class="text-[11px] font-mono text-slate-400">GSI Replication</div>
-            <div class="text-lg font-bold font-mono text-emerald-400">Async Log Tail</div>
-            <div class="text-[10px] text-slate-400">Decoupled PK/SK &amp; WCU</div>
-          </div>
-          <div class="p-3.5 rounded-xl bg-slate-900/90 border border-slate-800">
-            <div class="text-[11px] font-mono text-slate-400">Storage Quorum</div>
-            <div class="text-lg font-bold font-mono text-indigo-400">3-AZ Multi-Paxos</div>
-            <div class="text-[10px] text-slate-400">2 of 3 ACK on PutItem</div>
-          </div>
-        </div>
-      </div>
-    </div>
+    ${renderTopicIntro(DynamoMeta)}
 
     <!-- SECTION 1: INTERACTIVE KEY-TO-PARTITION ROUTER & B-TREE ITEM COLLECTION VISUALIZER -->
     <div class="glass-card rounded-2xl p-6 border border-slate-800 space-y-6">
@@ -81,7 +70,7 @@ function renderDynamoDBView(container) {
             <h2 class="text-lg font-bold text-white">Interactive Key-to-Partition Router &amp; B-Tree Item Collection Explorer</h2>
           </div>
           <p class="text-xs text-slate-400 mt-1">
-            Enter any <code class="text-amber-300">PK</code> and <code class="text-indigo-300">SK</code> to watch the Request Router compute <code class="text-emerald-300">MD5(PK)</code>, resolve the storage partition on the consistent hashing ring, insert into the on-disk B-Tree sorted by <code class="text-indigo-300">SK</code>, and asynchronously replicate to a GSI partition.
+            Enter any <code class="text-amber-300">PK</code> and <code class="text-sky-300">SK</code> to watch the Request Router compute <code class="text-emerald-300">MD5(PK)</code>, resolve the storage partition on the consistent hashing ring, insert into the on-disk B-Tree sorted by <code class="text-sky-300">SK</code>, and asynchronously replicate to a GSI partition.
           </p>
         </div>
         <div class="flex flex-wrap gap-2">
@@ -104,16 +93,16 @@ function renderDynamoDBView(container) {
           <input id="ddb-input-pk" type="text" value="USER#1024" class="w-full bg-slate-950 border border-amber-500/40 rounded-lg px-3 py-2 text-xs font-mono text-white focus:outline-none focus:border-amber-400" />
         </div>
         <div class="md:col-span-3">
-          <label class="text-[10px] font-mono uppercase text-indigo-400 font-bold block mb-1">Sort Key (SK / Range Key)</label>
-          <input id="ddb-input-sk" type="text" value="ORDER#2026-10-25" class="w-full bg-slate-950 border border-indigo-500/40 rounded-lg px-3 py-2 text-xs font-mono text-white focus:outline-none focus:border-indigo-400" />
+          <label class="text-[10px] font-mono uppercase text-sky-400 font-bold block mb-1">Sort Key (SK / Range Key)</label>
+          <input id="ddb-input-sk" type="text" value="ORDER#2026-10-25" class="w-full bg-slate-950 border border-sky-500/40 rounded-lg px-3 py-2 text-xs font-mono text-white focus:outline-none focus:border-sky-400" />
         </div>
         <div class="md:col-span-2">
           <label class="text-[10px] font-mono uppercase text-emerald-400 font-bold block mb-1">GSI1_PK (Status)</label>
           <input id="ddb-input-gsipk" type="text" value="STATUS#SHIPPED" class="w-full bg-slate-950 border border-emerald-500/40 rounded-lg px-3 py-2 text-xs font-mono text-white focus:outline-none" />
         </div>
         <div class="md:col-span-2">
-          <label class="text-[10px] font-mono uppercase text-fuchsia-400 font-bold block mb-1">Sparse Attr (Coupon)</label>
-          <input id="ddb-input-sparse" type="text" value="VIP#2026" placeholder="Omit for sparse skip" class="w-full bg-slate-950 border border-fuchsia-500/40 rounded-lg px-3 py-2 text-xs font-mono text-white focus:outline-none" />
+          <label class="text-[10px] font-mono uppercase text-teal-400 font-bold block mb-1">Sparse Attr (Coupon)</label>
+          <input id="ddb-input-sparse" type="text" value="VIP#2026" placeholder="Omit for sparse skip" class="w-full bg-slate-950 border border-teal-500/40 rounded-lg px-3 py-2 text-xs font-mono text-white focus:outline-none" />
         </div>
         <div class="md:col-span-2 flex items-end">
           <button id="ddb-put-btn" class="w-full py-2 px-3 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-mono font-bold text-xs flex items-center justify-center gap-1.5 transition shadow-lg shadow-amber-500/20">
@@ -145,13 +134,13 @@ function renderDynamoDBView(container) {
                   <span id="ddb-btree-title">Physical Storage Partition 3 [0x8000..0xBFFF] — B-Tree Ordered by SK</span>
                 </span>
                 <p class="text-[11px] text-slate-400 mt-0.5">
-                  All items with <code id="ddb-active-pk-code" class="text-amber-300">PK = "USER#1024"</code> are co-located in a contiguous physical Item Collection sorted lexicographically by <code class="text-indigo-300">SK</code>.
+                  All items with <code id="ddb-active-pk-code" class="text-amber-300">PK = "USER#1024"</code> are co-located in a contiguous physical Item Collection sorted lexicographically by <code class="text-sky-300">SK</code>.
                 </p>
               </div>
               <!-- Interactive SK Range Query Filter -->
               <div class="flex items-center gap-1.5 bg-slate-950 p-1.5 rounded-lg border border-slate-800 text-[11px] font-mono">
                 <span class="text-slate-400">SK Filter:</span>
-                <select id="ddb-sk-op" class="bg-slate-900 text-indigo-300 border border-slate-700 rounded px-1.5 py-0.5 focus:outline-none">
+                <select id="ddb-sk-op" class="bg-slate-900 text-sky-300 border border-slate-700 rounded px-1.5 py-0.5 focus:outline-none">
                   <option value="ALL">All Items in PK</option>
                   <option value="BEGINS_ORDER">begins_with("ORDER#")</option>
                   <option value="BEGINS_2026_10">begins_with("ORDER#2026-10")</option>
@@ -217,9 +206,9 @@ function renderDynamoDBView(container) {
           <div>
             <div class="flex justify-between font-mono mb-1">
               <span class="text-slate-300">Single PK Item Collection Size (Base + LSI):</span>
-              <span id="ddb-sim-lsi-gb-lbl" class="text-indigo-300 font-bold">6.5 GB / 10.0 GB</span>
+              <span id="ddb-sim-lsi-gb-lbl" class="text-sky-300 font-bold">6.5 GB / 10.0 GB</span>
             </div>
-            <input id="ddb-sim-lsi-gb" type="range" min="1" max="11" step="0.5" value="6.5" class="w-full accent-indigo-500" />
+            <input id="ddb-sim-lsi-gb" type="range" min="1" max="11" step="0.5" value="6.5" class="w-full accent-sky-500" />
           </div>
         </div>
 
@@ -233,7 +222,7 @@ function renderDynamoDBView(container) {
               <tr class="border-b border-slate-800 text-slate-400 font-mono text-[10px] uppercase">
                 <th class="py-2 pr-2">Feature</th>
                 <th class="py-2 px-2 text-emerald-300">Global Secondary Index (GSI)</th>
-                <th class="py-2 pl-2 text-indigo-300">Local Secondary Index (LSI)</th>
+                <th class="py-2 pl-2 text-sky-300">Local Secondary Index (LSI)</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-slate-800/60 text-slate-300 text-[11px]">
@@ -267,11 +256,11 @@ function renderDynamoDBView(container) {
         <div class="space-y-4">
           <div class="border-b border-slate-800 pb-3">
             <h3 class="text-base font-bold text-white flex items-center gap-2">
-              <i data-lucide="filter" class="w-4 h-4 text-fuchsia-400"></i>
+              <i data-lucide="filter" class="w-4 h-4 text-teal-400"></i>
               Index Projections &amp; Sparse Index Cost Calculator
             </h3>
             <p class="text-xs text-slate-400 mt-1">
-              Compare storage amplification and query fetch costs across <code class="text-amber-300">KEYS_ONLY</code>, <code class="text-emerald-300">INCLUDE</code>, and <code class="text-indigo-300">ALL</code> projections, plus how <strong>Sparse Indexes</strong> filter 99% of items at zero scan cost.
+              Compare storage amplification and query fetch costs across <code class="text-amber-300">KEYS_ONLY</code>, <code class="text-emerald-300">INCLUDE</code>, and <code class="text-sky-300">ALL</code> projections, plus how <strong>Sparse Indexes</strong> filter 99% of items at zero scan cost.
             </p>
           </div>
 
@@ -299,13 +288,13 @@ function renderDynamoDBView(container) {
           </div>
 
           <!-- Sparse Index Interactive Explainer -->
-          <div class="p-3.5 rounded-xl bg-fuchsia-500/10 border border-fuchsia-500/30 text-xs text-slate-300 space-y-1.5">
-            <div class="font-bold text-fuchsia-300 font-mono flex items-center justify-between">
+          <div class="p-3.5 rounded-xl bg-teal-500/10 border border-teal-500/30 text-xs text-slate-300 space-y-1.5">
+            <div class="font-bold text-teal-300 font-mono flex items-center justify-between">
               <span>Sparse Index Mechanics (Zero-Scan Filtering)</span>
-              <span class="px-2 py-0.5 rounded bg-fuchsia-500/20 text-[10px]">O(1) Lookup</span>
+              <span class="px-2 py-0.5 rounded bg-teal-500/20 text-[10px]">O(1) Lookup</span>
             </div>
             <p class="text-[11px] leading-relaxed">
-              DynamoDB only projects a Base Table item into a GSI if the item <strong>actually contains the GSI Partition Key and Sort Key attributes</strong>. By writing <code class="text-fuchsia-300">needs_review = "TRUE"</code> only on flagged orders (0.5% of rows) and deleting that attribute once reviewed, the GSI stays 200x smaller and queries only flagged items without scanning!
+              DynamoDB only projects a Base Table item into a GSI if the item <strong>actually contains the GSI Partition Key and Sort Key attributes</strong>. By writing <code class="text-teal-300">needs_review = "TRUE"</code> only on flagged orders (0.5% of rows) and deleting that attribute once reviewed, the GSI stays 200x smaller and queries only flagged items without scanning!
             </p>
           </div>
         </div>
@@ -374,12 +363,12 @@ function renderDynamoDBView(container) {
                 <span class="px-1.5 py-0.5 rounded bg-slate-900 text-slate-400 text-[10px]">Leaf #${idx + 1}</span>
                 <span class="text-amber-300 font-bold">${it.pk}</span>
                 <span class="text-slate-500">│</span>
-                <span class="text-indigo-300 font-semibold">${it.sk}</span>
+                <span class="text-sky-300 font-semibold">${it.sk}</span>
               </div>
               <div class="flex items-center gap-2 text-[10px]">
                 <span class="px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">${it.gsiPk}</span>
                 ${it.sparse
-                  ? `<span class="px-2 py-0.5 rounded bg-fuchsia-500/20 text-fuchsia-300 border border-fuchsia-500/40">Sparse: ${it.sparse}</span>`
+                  ? `<span class="px-2 py-0.5 rounded bg-teal-500/20 text-teal-300 border border-teal-500/40">Sparse: ${it.sparse}</span>`
                   : `<span class="px-2 py-0.5 rounded bg-slate-900 text-slate-500">Omitted from Sparse GSI</span>`
                 }
               </div>
@@ -515,7 +504,7 @@ function renderDynamoDBView(container) {
           {
             label: 'Sparse Index (2% Flagged Items)',
             data: [0.9, 2, 2],
-            backgroundColor: 'rgba(217, 70, 239, 0.7)',
+            backgroundColor: 'rgba(20, 184, 166, 0.7)',
             borderRadius: 6
           }
         ]
