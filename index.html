@@ -89,6 +89,15 @@
               </div>
             </div>
           </a>
+          <a href="#cosmosdb" data-route="cosmosdb" class="sidebar-link flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium text-slate-300 hover:bg-slate-800/60 transition-all">
+            <div class="flex items-center gap-2.5">
+              <i data-lucide="globe" class="w-4 h-4 text-cyan-400 shrink-0"></i>
+              <div>
+                <div class="font-semibold">Azure Cosmos DB</div>
+                <div class="text-[10px] text-slate-400">RU/s, 5 Consistencies &amp; Partitions</div>
+              </div>
+            </div>
+          </a>
           <a href="#spanner" data-route="spanner" class="sidebar-link flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium text-slate-300 hover:bg-slate-800/60 transition-all">
             <div class="flex items-center gap-2.5">
               <i data-lucide="clock" class="w-4 h-4 text-blue-400 shrink-0"></i>
@@ -199,6 +208,33 @@
           </a>
         </nav>
       </div>
+
+      <!-- 5. Web & Network Security -->
+      <div>
+        <div class="flex items-center justify-between px-2 mb-2">
+          <span class="text-[10px] font-mono uppercase tracking-wider font-bold text-teal-400">Web &amp; Network Security</span>
+        </div>
+        <nav class="space-y-1" id="nav-group-web-security">
+          <a href="#pki-ca" data-route="pki-ca" class="sidebar-link flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium text-slate-300 hover:bg-slate-800/60 transition-all">
+            <div class="flex items-center gap-2.5">
+              <i data-lucide="key" class="w-4 h-4 text-teal-400 shrink-0"></i>
+              <div>
+                <div class="font-semibold">Certificate Authorities &amp; PKI</div>
+                <div class="text-[10px] text-slate-400">X.509, OCSP Stapling &amp; CT Logs</div>
+              </div>
+            </div>
+          </a>
+          <a href="#tls" data-route="tls" class="sidebar-link flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium text-slate-300 hover:bg-slate-800/60 transition-all">
+            <div class="flex items-center gap-2.5">
+              <i data-lucide="lock" class="w-4 h-4 text-emerald-400 shrink-0"></i>
+              <div>
+                <div class="font-semibold">TLS Architecture &amp; Handshake</div>
+                <div class="text-[10px] text-slate-400">1-RTT, 0-RTT PSK, ECDHE &amp; ECH</div>
+              </div>
+            </div>
+          </a>
+        </nav>
+      </div>
     </div>
 
     <!-- Bottom Sidebar Controls: 3D Topology & Runtime Telemetry -->
@@ -269,6 +305,7 @@
 
   <!-- Storage & Databases Modules -->
   <script src="js/topics/storage/dynamodb.js"></script>
+  <script src="js/topics/storage/cosmosdb.js"></script>
   <script src="js/topics/databases-consensus/spanner.js"></script>
   <script src="js/topics/databases-consensus/cockroachdb.js"></script>
   <script src="js/topics/databases-consensus/postgresql.js"></script>
@@ -284,6 +321,10 @@
 
   <!-- Streaming & Event Logs Modules -->
   <script src="js/topics/streaming/kafka.js"></script>
+
+  <!-- Web & Network Security Modules -->
+  <script src="js/topics/web-security/pki-ca.js"></script>
+  <script src="js/topics/web-security/tls.js"></script>
 
   <!-- 3D Topology Visualizer & Hash Router -->
   <script src="js/core/topology3d.js"></script>

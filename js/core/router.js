@@ -3,6 +3,7 @@
 // ============================================================================
 const Routes = {
   'dynamodb': renderDynamoDBView,
+  'cosmosdb': renderCosmosDBView,
   'spanner': renderSpannerView,
   'cockroachdb': renderCockroachDBView,
   'postgresql': renderPostgresView,
@@ -11,7 +12,9 @@ const Routes = {
   'temporal': renderTemporalView,
   'restate': renderRestateView,
   'compare-durable': renderCompareDurableView,
-  'kafka': renderKafkaView
+  'kafka': renderKafkaView,
+  'pki-ca': renderPkiCaView,
+  'tls': renderTlsView
 };
 
 function normalizeHash(rawHash) {
